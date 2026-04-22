@@ -13,7 +13,7 @@ from .routers import auth, content, pets, parcels, ai, vworld
 
 settings = get_settings()
 
-HASHED_ASSET_RE = re.compile(r"/assets/.*-[0-9a-f]{8,}\.")
+HASHED_ASSET_RE = re.compile(r"/assets/.*-[A-Za-z0-9_-]{6,}\.[a-z0-9]+$")
 
 
 @asynccontextmanager
@@ -52,7 +52,7 @@ async def cache_control(request: Request, call_next):
     elif HASHED_ASSET_RE.search(path):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     else:
-        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+        response.headers["Cache-Control"] = "private, max-age=0, must-revalidate"
     return response
 
 
