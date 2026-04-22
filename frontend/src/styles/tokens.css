@@ -1,21 +1,29 @@
 :root {
-  /* ── 브랜드 컬러 ── */
-  --joojoo-night: #0a0e27;
-  --joojoo-ink: #11142a;
-  --joojoo-cream: #faf7f2;
-  --joojoo-warm: #fff4e6;
+  /* ── 브랜드 컬러 (전체 다크 모드) ── */
+  --joojoo-night: #05081b;          /* deepest surface (body 배경 원본) */
+  --joojoo-ink: #0a0e27;             /* 세컨더리 서피스 */
+  --joojoo-cream: #08112a;           /* was light cream → 이제 primary 서피스 (body) */
+  --joojoo-warm: #121a3a;            /* was light warm → 이제 alt 서피스 (section--warm) */
+  --joojoo-surface: #141b38;         /* 카드 베이스 */
+  --joojoo-surface-alt: #1a2244;     /* hover / elevated 카드 */
+  --joojoo-surface-glass: rgba(20, 27, 56, 0.65);
+  --joojoo-border: rgba(234, 234, 245, 0.08);
+  --joojoo-border-accent: rgba(107, 91, 255, 0.28);
+
   --joojoo-aurora-a: #6b5bff;
   --joojoo-aurora-b: #ff6bd6;
   --joojoo-tech: #00e5ff;
   --joojoo-soul: #c9a8ff;
-  --joojoo-text: #1a1a2e;
-  --joojoo-text-invert: #f5f5fa;
-  --joojoo-text-muted: #8a8aa3;
+
+  --joojoo-text: #eaeaf5;            /* was dark → primary text on dark */
+  --joojoo-text-invert: #eaeaf5;     /* 이제 둘 다 light (다크 전환) */
+  --joojoo-text-muted: rgba(234, 234, 245, 0.6);
+  --joojoo-text-dim: rgba(234, 234, 245, 0.38);
 
   /* ── 그라디언트 ── */
   --joojoo-aurora: linear-gradient(135deg, var(--joojoo-aurora-a) 0%, var(--joojoo-aurora-b) 100%);
   --joojoo-aurora-soft: linear-gradient(135deg, rgba(107, 91, 255, 0.35) 0%, rgba(255, 107, 214, 0.35) 100%);
-  --joojoo-hero-bg: radial-gradient(ellipse at top, #1a1f4a 0%, var(--joojoo-night) 60%, #05061a 100%);
+  --joojoo-hero-bg: radial-gradient(ellipse at top, #1a1f4a 0%, var(--joojoo-night) 60%, #02040e 100%);
 
   /* ── 타이포 ── */
   --font-heading: 'Pretendard', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;

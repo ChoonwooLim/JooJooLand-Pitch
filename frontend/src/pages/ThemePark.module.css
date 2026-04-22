@@ -27,15 +27,17 @@
 .card {
   position: relative;
   padding: var(--space-2xl);
-  background: white;
+  background: var(--joojoo-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
-  border: 1px solid rgba(10, 14, 39, 0.06);
+  border: 1px solid var(--joojoo-border);
   overflow: hidden;
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base), border-color var(--transition-base);
 }
 
 .card:hover {
+  background: var(--joojoo-surface-alt);
+  border-color: var(--joojoo-border-accent);
   transform: translateY(-6px);
   box-shadow: var(--shadow-lg);
 }

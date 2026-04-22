@@ -10,6 +10,8 @@ let currentBaseLayer = null;
 let cadastralLayer = null;
 let polygonsById = {};   // no -> { polygon, label, parcel }
 let resolvedParcels = []; // 성공한 필지만
+let currentApiKey = '';   // WMS 오버레이 토글용 (startMap 시 세팅)
+const wmsLayers = {};     // { layerKey: L.tileLayer.wms }
 
 // ==================== 초기화 ====================
 function init() {
@@ -62,6 +64,7 @@ function setupKeyModal() {
 
 // ==================== 지도 초기화 ====================
 function startMap(key) {
+  currentApiKey = key;
   // 양동면 금왕리 대략 중심 (산205 근처)
   map = L.map('map', {
     center: [37.378, 127.738],
@@ -165,8 +168,92 @@ function startMap(key) {
   // 인접 부지 오버레이 체크박스 리스너는 즉시 부착 (필지 로드와 독립)
   setupAdjacentLayers(key);
 
+  // GIS 오버레이 탭 + WMS 토글
+  setupGisTabs();
+  setupWMSLayers();
+
   // 필지 로드
   loadAllParcels(key);
+}
+
+// ==================== GIS 오버레이 탭 ====================
+// VWorld WMS 레이어 ID 매핑. 출처: VWorld 오픈API 문서 + KLIS 데이터셋 카탈로그.
+// (β) 로 표기된 것은 레이어 ID 가 서버에서 응답 없을 수 있어 사용자 검증 필요.
+const WMS_LAYER_CONFIG = {
+  // 🏞 토지용도
+  uq161:    { layer: 'lt_c_uq161',    label: '용도지역' },
+  uq162:    { layer: 'lt_c_uq162',    label: '용도지구' },
+  uq163:    { layer: 'lt_c_uq163',    label: '도시계획시설' },
+  landuse:  { layer: 'lt_c_landuse',  label: '토지이용현황' },
+  // ⛰ 경사·환경
+  slope:    { layer: 'lt_c_damden',   label: '경사도' },
+  eco:      { layer: 'lt_c_ecoltm',   label: '생태자연도' },
+  kemp:     { layer: 'lt_c_kemp',     label: '국토환경성평가' },
+  // 🚧 규제
+  ud801:    { layer: 'lt_c_ud801',    label: '개발제한구역' },
+  waprl:    { layer: 'lt_c_waprl',    label: '상수원보호구역' },
+  wkmstrm:  { layer: 'lt_c_wkmstrm',  label: '수변구역' },
+  asetl:    { layer: 'lt_c_asetl',    label: '군사시설보호구역' },
+  ascult:   { layer: 'lt_c_ascult',   label: '문화재보호구역' },
+  // 🛣 교통
+  'road-net': { layer: 'lt_l_moctlink', label: '도로망' },
+  'rail-net': { layer: 'lt_l_rwrlline', label: '철도망' },
+};
+
+function setupGisTabs() {
+  const buttons = document.querySelectorAll('.tab-button');
+  const panels  = document.querySelectorAll('.tab-panel');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      buttons.forEach(b => b.classList.toggle('active', b === btn));
+      panels.forEach(p => p.classList.toggle('active', p.id === `tab-${target}`));
+    });
+  });
+}
+
+function setupWMSLayers() {
+  document.querySelectorAll('.wms-toggle').forEach(cb => {
+    cb.addEventListener('change', () => toggleWMSLayer(cb.value, cb.checked, cb));
+  });
+}
+
+function toggleWMSLayer(key, enabled, cb) {
+  const cfg = WMS_LAYER_CONFIG[key];
+  if (!cfg || !map || !currentApiKey) return;
+  if (enabled) {
+    if (!wmsLayers[key]) {
+      const tl = L.tileLayer.wms(
+        `https://api.vworld.kr/req/wms?key=${currentApiKey}`,
+        {
+          layers: cfg.layer,
+          format: 'image/png',
+          transparent: true,
+          version: '1.3.0',
+          maxZoom: 19,
+          opacity: 0.75,
+        }
+      );
+      tl.on('tileerror', () => {
+        if (!tl._erroredOnce) {
+          tl._erroredOnce = true;
+          console.warn(`[WMS] ${cfg.label} (${cfg.layer}) 타일 응답 없음 — VWorld 에서 제공 안할 수 있음`);
+        }
+      });
+      wmsLayers[key] = tl;
+    }
+    wmsLayers[key].addTo(map);
+    wmsLayers[key].bringToFront();
+    if (cadastralLayer && map.hasLayer(cadastralLayer)) cadastralLayer.bringToFront();
+    Object.values(polygonsById).forEach(({polygon, label}) => {
+      polygon.bringToFront();
+      if (label) label.setZIndexOffset(1000);
+    });
+  } else {
+    if (wmsLayers[key] && map.hasLayer(wmsLayers[key])) {
+      map.removeLayer(wmsLayers[key]);
+    }
+  }
 }
 
 // ==================== 인접 부지 오버레이 ====================

@@ -144,14 +144,52 @@
           <label><input type="checkbox" id="toggle-cadastral" checked /> 지적편집도 표시</label>
           <label><input type="checkbox" id="toggle-labels" checked /> 지번 라벨</label>
         </div>
-        <div class="filter-group" id="group-adjacent-layers">
-          <strong>인접 부지 오버레이</strong>
-          <label><input type="checkbox" class="layer-toggle" value="road" /> <span class="layer-swatch" style="background:#9e9e9e"></span> 도로</label>
-          <label><input type="checkbox" class="layer-toggle" value="ditch" /> <span class="layer-swatch" style="background:#00bcd4"></span> 구거</label>
-          <label><input type="checkbox" class="layer-toggle" value="river" /> <span class="layer-swatch" style="background:#2196f3"></span> 하천·제방·유지</label>
-          <label><input type="checkbox" class="layer-toggle" value="public" /> <span class="layer-swatch" style="background:#ffd54f"></span> 국공유지 <small>(β)</small></label>
-          <label><input type="checkbox" class="layer-toggle" value="military" /> <span class="layer-swatch" style="background:#d84315"></span> 군유지 <small>(β)</small></label>
-          <p class="hint" style="margin:6px 0 0;font-size:10px;opacity:0.75;">대상 34필지 범위 +300m 버퍼 조회. 국공유지/군유지는 VWorld 소유구분 속성 제한으로 heuristic 판정.</p>
+        <div class="filter-group" id="group-gis-tabs">
+          <strong>GIS 오버레이</strong>
+          <div class="tab-bar" role="tablist">
+            <button class="tab-button active" data-tab="site" role="tab" title="대상부지 + 인접부지">📍 대상</button>
+            <button class="tab-button" data-tab="landuse" role="tab" title="토지용도·지구·계획시설">🏞 용도</button>
+            <button class="tab-button" data-tab="terrain" role="tab" title="경사·생태·환경평가">⛰ 환경</button>
+            <button class="tab-button" data-tab="regulation" role="tab" title="개발제한·군사·문화재·수자원">🚧 규제</button>
+            <button class="tab-button" data-tab="transport" role="tab" title="도로·철도">🛣 교통</button>
+          </div>
+
+          <div class="tab-panel active" id="tab-site" role="tabpanel">
+            <label><input type="checkbox" class="layer-toggle" value="road" /> <span class="layer-swatch" style="background:#9e9e9e"></span> 도로</label>
+            <label><input type="checkbox" class="layer-toggle" value="ditch" /> <span class="layer-swatch" style="background:#00bcd4"></span> 구거</label>
+            <label><input type="checkbox" class="layer-toggle" value="river" /> <span class="layer-swatch" style="background:#2196f3"></span> 하천·제방·유지</label>
+            <label><input type="checkbox" class="layer-toggle" value="public" /> <span class="layer-swatch" style="background:#ffd54f"></span> 국공유지 <small>(β)</small></label>
+            <label><input type="checkbox" class="layer-toggle" value="military" /> <span class="layer-swatch" style="background:#d84315"></span> 군유지 <small>(β)</small></label>
+            <p class="hint">대상 34필지 범위 +300m 버퍼 조회. 국공유지/군유지는 VWorld 속성 제한으로 heuristic 판정.</p>
+          </div>
+
+          <div class="tab-panel" id="tab-landuse" role="tabpanel">
+            <label><input type="checkbox" class="wms-toggle" value="uq161" /> 용도지역 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="uq162" /> 용도지구 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="uq163" /> 도시계획시설 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="landuse" /> 토지이용현황 <small class="beta-tag">(β)</small></label>
+            <p class="hint">VWorld WMS · 줌 14+ 에서 잘 보입니다.</p>
+          </div>
+
+          <div class="tab-panel" id="tab-terrain" role="tabpanel">
+            <label><input type="checkbox" class="wms-toggle" value="slope" /> 경사도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="eco" /> 생태자연도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="kemp" /> 국토환경성평가 <small class="beta-tag">(β)</small></label>
+            <p class="hint">경사도·생태·환경 평가는 출처 서버에 따라 타일이 비어있을 수 있음. (β) 표기는 레이어 ID 검증 중.</p>
+          </div>
+
+          <div class="tab-panel" id="tab-regulation" role="tabpanel">
+            <label><input type="checkbox" class="wms-toggle" value="ud801" /> 개발제한구역(GB)</label>
+            <label><input type="checkbox" class="wms-toggle" value="waprl" /> 상수원보호구역 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="wkmstrm" /> 수변구역 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="asetl" /> 군사시설보호구역 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="ascult" /> 문화재보호구역 <small class="beta-tag">(β)</small></label>
+          </div>
+
+          <div class="tab-panel" id="tab-transport" role="tabpanel">
+            <label><input type="checkbox" class="wms-toggle" value="road-net" /> 도로망 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="rail-net" /> 철도망 <small class="beta-tag">(β)</small></label>
+          </div>
         </div>
         <div class="filter-group" id="group-3d-only">
           <strong>3D 전용</strong>

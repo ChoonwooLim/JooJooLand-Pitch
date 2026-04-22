@@ -67,13 +67,16 @@
 .feature {
   text-align: center;
   padding: var(--space-xl);
-  background: white;
+  background: var(--joojoo-surface);
+  border: 1px solid var(--joojoo-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .feature:hover {
+  background: var(--joojoo-surface-alt);
+  border-color: var(--joojoo-border-accent);
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
 }
