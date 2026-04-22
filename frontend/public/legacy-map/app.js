@@ -170,16 +170,14 @@ function startMap(key) {
 }
 
 // ==================== 인접 부지 오버레이 ====================
-// VWorld 지목코드 (LP_PA_CBND_BUBUN `jimok` 속성)
-//   14=도로, 16=제방, 17=하천, 18=구거, 19=유지
-// 국공유지/군유지는 VWorld 지적도에 소유구분이 없어
-// `posesn_se_cd` 등 비표준 속성 시도 후 실패 시 안내만 노출.
+// 연속지적도(LP_PA_CBND_BUBUN)는 지목 속성 미노출.
+// → BBOX 로 전체 PNU 가져와 VWorld NED getLandCharacteristics 로 ladUseSittnNm(토지이용상황) 보강.
 const ADJ_LAYER_CONFIG = {
-  road:     { label: '도로',          color: '#616161', attrFilter: 'jimok:=:14' },
-  ditch:    { label: '구거',          color: '#00bcd4', attrFilter: 'jimok:=:18' },
-  river:    { label: '하천·제방·유지', color: '#1976d2', attrFilter: 'jimok:IN:(16,17,19)' },
-  public:   { label: '국공유지',      color: '#ffa000', attrFilter: null, ownership: ['국','공'] },
-  military: { label: '군유지',        color: '#d84315', attrFilter: null, ownership: ['군'] },
+  road:     { label: '도로',           color: '#616161', matchAny: ['도로', '국도', '지방도', '고속도'] },
+  ditch:    { label: '구거',           color: '#00bcd4', matchAny: ['구거'] },
+  river:    { label: '하천·제방·유지', color: '#1976d2', matchAny: ['하천', '제방', '유지'] },
+  public:   { label: '국공유지',       color: '#ffa000', matchAny: null, note: 'ownership' },
+  military: { label: '군유지',         color: '#d84315', matchAny: null, note: 'ownership' },
 };
 
 const adjacentLayerGroups = {}; // type -> L.LayerGroup
@@ -197,43 +195,114 @@ function getTargetBBoxString() {
   return _adjBBoxCached;
 }
 
+// BBOX 전체 필지 (캐시) — 한 번만 긁어 모든 오버레이가 공유
+let _bboxParcelsCache = null;
+async function loadBBoxParcels(bbox, key) {
+  if (_bboxParcelsCache) return _bboxParcelsCache;
+  const bboxCacheKey = `bbox:${bbox}`;
+  const stored = cacheGet(bboxCacheKey);
+  if (stored) {
+    console.info(`[adjacent] BBOX 캐시 적중 (${stored.length}건)`);
+    _bboxParcelsCache = stored;
+    return stored;
+  }
+  console.info(`[adjacent] BBOX WFS 쿼리`, bbox);
+  const feats = await wfsQuery({ geomFilter: bbox, size: '1000', crs: 'EPSG:4326' }, key);
+  console.info(`[adjacent] BBOX 응답 ${feats.length}건`);
+  cacheSet(bboxCacheKey, feats);
+  _bboxParcelsCache = feats;
+  return feats;
+}
+
+// PNU 별 토지이용상황 (NED getLandCharacteristics) — 개별 캐시
+async function fetchLandCharacteristics(pnu, key) {
+  if (!pnu) return null;
+  const cached = cacheGet('char:' + pnu);
+  if (cached !== null) return cached;
+  const url = `/api/vworld/ned/getLandCharacteristics?` + new URLSearchParams({
+    key, pnu, format: 'json', domain: window.location.hostname || 'localhost',
+  });
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const root = data?.landCharacteristicss || data?.response;
+    const resultCode = root?.resultCode || data?.response?.status;
+    if (resultCode && resultCode !== 'OK' && resultCode !== 'NORMAL_SERVICE') {
+      throw new Error(`${resultCode}: ${root?.resultMsg || ''}`);
+    }
+    const fields = root?.field || root?.fields?.field || [];
+    const arr = Array.isArray(fields) ? fields : [fields];
+    if (arr.length === 0) { cacheSet('char:' + pnu, { ladUseSittnNm: null }); return { ladUseSittnNm: null }; }
+    arr.sort((a, b) => String(b.lastUpdtDt || '').localeCompare(String(a.lastUpdtDt || '')));
+    const pick = arr[0];
+    const result = {
+      ladUseSittnNm: pick.ladUseSittnNm || pick.prposArea1Nm || null,
+      raw: pick,
+    };
+    cacheSet('char:' + pnu, result);
+    return result;
+  } catch (e) {
+    console.warn(`[adjacent] getLandCharacteristics 실패 pnu=${pnu}:`, e.message);
+    return null;
+  }
+}
+
 async function loadAdjacentLayer(type, key) {
   const cfg = ADJ_LAYER_CONFIG[type];
   if (!cfg) return;
   const bbox = getTargetBBoxString();
   if (!bbox) { alert('필지 로드 완료 후 다시 시도해주세요'); return; }
 
-  // 국공유지/군유지: 소유구분 속성 미제공 — 안내 후 종료
-  if (!cfg.attrFilter) {
+  if (!cfg.matchAny) {
     alert(
-      `${cfg.label} 레이어는 VWorld 공개 지적도(LP_PA_CBND_BUBUN)에\n` +
-      `소유구분 속성이 없어 지도 표시가 불가합니다.\n\n` +
-      `추후 KAIS/등기 연계 후 복구 예정.`
+      `${cfg.label} 레이어는 VWorld 공개 API 에서 소유구분 속성 미제공으로\n` +
+      `현재 표시가 불가합니다.\n\n추후 KAIS/등기 연계 후 복구 예정.`
     );
     const cb = document.querySelector(`.layer-toggle[value="${type}"]`);
     if (cb) cb.checked = false;
     return;
   }
 
-  const params = { geomFilter: bbox, attrFilter: cfg.attrFilter, size: '1000', crs: 'EPSG:4326' };
-  console.info(`[adjacent] ${cfg.label} 쿼리 시작`, params);
-  updateProgress(0, 1, `${cfg.label} 로드 중...`);
   try {
-    const feats = await wfsQuery(params, key);
-    console.info(`[adjacent] ${cfg.label} 응답 ${feats.length}건`);
+    updateProgress(0, 1, `${cfg.label}: BBOX 필지 수집 중...`);
+    const parcels = await loadBBoxParcels(bbox, key);
+
     const targetPnus = new Set();
     Object.values(polygonsById).forEach(({polygon}) => {
       const f = polygon.feature;
       if (f && f.properties && f.properties.pnu) targetPnus.add(f.properties.pnu);
     });
-    const filtered = feats.filter(f => !targetPnus.has(f.properties?.pnu));
-    if (filtered.length === 0) {
-      updateProgress(1, 1, `${cfg.label}: 표시 대상 없음`);
-      alert(`${cfg.label}: 대상 부지 주변 300m 내 해당 지목 필지가 없습니다. (총 ${feats.length}건 중 대상필지 중복 제외 후 0건)`);
+    const candidates = parcels.filter(f => !targetPnus.has(f.properties?.pnu) && f.properties?.pnu);
+
+    const matched = [];
+    let done = 0;
+    const concurrency = 4;
+    const q = [...candidates];
+    async function worker() {
+      while (q.length) {
+        const f = q.shift();
+        if (!f) break;
+        const pnu = f.properties.pnu;
+        const info = await fetchLandCharacteristics(pnu, key);
+        const name = info?.ladUseSittnNm || '';
+        if (name && cfg.matchAny.some(kw => name.includes(kw))) {
+          f.properties._ladUseSittnNm = name;
+          matched.push(f);
+        }
+        done++;
+        if (done % 10 === 0) updateProgress(done, candidates.length, `${cfg.label}: ${done}/${candidates.length} 조회 (매칭 ${matched.length})`);
+      }
+    }
+    await Promise.all(Array.from({length: concurrency}, worker));
+
+    if (matched.length === 0) {
+      updateProgress(1, 1, `${cfg.label}: 매칭 필지 없음`);
+      alert(`${cfg.label}: BBOX ${candidates.length}필지 조회했으나 매칭 0건.\n(키워드: ${cfg.matchAny.join(', ')})`);
       return;
     }
-    renderAdjacentLayer(type, filtered, cfg);
-    updateProgress(1, 1, `${cfg.label}: ${filtered.length}건 표시 (대상필지 제외)`);
+    renderAdjacentLayer(type, matched, cfg);
+    updateProgress(1, 1, `${cfg.label}: ${matched.length}건 표시`);
   } catch (e) {
     console.error(`[adjacent] ${cfg.label} 로드 실패:`, e);
     alert(`${cfg.label} 로드 실패: ${e.message}`);
@@ -257,7 +326,7 @@ function renderAdjacentLayer(type, features, cfg) {
     layer.bindPopup(
       `<div class="popup-title">${cfg.label}</div>` +
       `<div class="popup-row"><strong>지번</strong><span>${p.jibun || '-'}</span></div>` +
-      `<div class="popup-row"><strong>지목코드</strong><span>${p.jimok || '-'}</span></div>` +
+      `<div class="popup-row"><strong>이용상황</strong><span>${p._ladUseSittnNm || '-'}</span></div>` +
       (p.pnu ? `<div class="popup-row"><strong>PNU</strong><span style="font-family:monospace;font-size:11px">${p.pnu}</span></div>` : '')
     );
     layer.addTo(group);
@@ -386,6 +455,31 @@ function setupFilters() {
   });
 }
 
+// ==================== localStorage 캐시 (VWorld 쿼터 절약) ====================
+const CACHE_PREFIX = 'vw_v1:';
+function cacheGet(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function cacheSet(key, value) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value));
+  } catch (e) {
+    console.warn('[cache] localStorage 저장 실패 (쿼터 초과 가능):', e.message);
+  }
+}
+window.clearVWorldCache = function() {
+  let n = 0;
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(CACHE_PREFIX)) { localStorage.removeItem(k); n++; }
+  }
+  console.info(`[cache] ${n}건 삭제. 새로고침(F5)하세요.`);
+  return n;
+};
+
 // ==================== VWorld API 호출 ====================
 // 공통 재시도 (transient "INCORRECT_KEY" 등 rate-limit 대응)
 async function fetchWithRetry(url, retries = 3, delay = 600) {
@@ -413,6 +507,8 @@ async function fetchWithRetry(url, retries = 3, delay = 600) {
 
 async function geocodeParcel(parcel, key) {
   const address = window.buildAddress(parcel);
+  const cached = cacheGet('geo:' + address);
+  if (cached) { console.debug('[cache] geocode 적중:', address); return cached; }
   const url = `/api/vworld/address?` + new URLSearchParams({
     service: 'address',
     request: 'getcoord',
@@ -427,7 +523,9 @@ async function geocodeParcel(parcel, key) {
   const data = await fetchWithRetry(url);
   const pt = data.response.result.point;
   const pnu = data.response.refined?.structure?.level4LC || null;
-  return { lng: parseFloat(pt.x), lat: parseFloat(pt.y), pnu };
+  const result = { lng: parseFloat(pt.x), lat: parseFloat(pt.y), pnu };
+  cacheSet('geo:' + address, result);
+  return result;
 }
 
 async function wfsQuery(filterParams, key) {
@@ -449,6 +547,15 @@ async function wfsQuery(filterParams, key) {
 
 // 3단계 fallback: PNU → POINT → BBOX(근처 폴리곤 중 소유 필지 번호 매칭)
 async function fetchParcelPolygon(geocoded, parcel, key) {
+  const cacheKey = 'poly:' + (geocoded.pnu || window.buildAddress(parcel));
+  const cached = cacheGet(cacheKey);
+  if (cached) { console.debug('[cache] polygon 적중:', parcel.lot); return cached; }
+  const feature = await _fetchParcelPolygonImpl(geocoded, parcel, key);
+  cacheSet(cacheKey, feature);
+  return feature;
+}
+
+async function _fetchParcelPolygonImpl(geocoded, parcel, key) {
   const { lng, lat, pnu } = geocoded;
 
   // 1차: PNU attrFilter

@@ -47,3 +47,18 @@ async def vworld_data_proxy(request: Request):
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(f"{VWORLD_BASE}/data", params=params)
     return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
+
+
+# NED (Nationwide Essential Data) 서비스 — 토지특성/소유/공시지가 등 PNU 기반 조회
+# 예: /api/vworld/ned/getLandCharacteristics?pnu=...&stdrYear=2024&format=json
+@router.get("/ned/{endpoint}")
+async def vworld_ned_proxy(endpoint: str, request: Request):
+    key = get_settings().vworld_api_key
+    if not key:
+        raise HTTPException(status_code=503, detail="VWORLD_API_KEY not configured")
+    params = dict(request.query_params)
+    params["key"] = key
+    params.setdefault("format", "json")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"https://api.vworld.kr/ned/data/{endpoint}", params=params)
+    return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
