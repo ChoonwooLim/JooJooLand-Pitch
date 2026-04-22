@@ -162,8 +162,11 @@ function startMap(key) {
     }
   });
 
+  // 인접 부지 오버레이 체크박스 리스너는 즉시 부착 (필지 로드와 독립)
+  setupAdjacentLayers(key);
+
   // 필지 로드
-  loadAllParcels(key).then(() => setupAdjacentLayers(key));
+  loadAllParcels(key);
 }
 
 // ==================== 인접 부지 오버레이 ====================
@@ -212,17 +215,23 @@ async function loadAdjacentLayer(type, key) {
     return;
   }
 
-  const params = { geomFilter: bbox, attrFilter: cfg.attrFilter, size: '1000' };
+  const params = { geomFilter: bbox, attrFilter: cfg.attrFilter, size: '1000', crs: 'EPSG:4326' };
+  console.info(`[adjacent] ${cfg.label} 쿼리 시작`, params);
   updateProgress(0, 1, `${cfg.label} 로드 중...`);
   try {
     const feats = await wfsQuery(params, key);
-    // 대상 34필지와 겹치는 항목 제외 (이미 다른 색으로 표시됨)
+    console.info(`[adjacent] ${cfg.label} 응답 ${feats.length}건`);
     const targetPnus = new Set();
     Object.values(polygonsById).forEach(({polygon}) => {
       const f = polygon.feature;
       if (f && f.properties && f.properties.pnu) targetPnus.add(f.properties.pnu);
     });
     const filtered = feats.filter(f => !targetPnus.has(f.properties?.pnu));
+    if (filtered.length === 0) {
+      updateProgress(1, 1, `${cfg.label}: 표시 대상 없음`);
+      alert(`${cfg.label}: 대상 부지 주변 300m 내 해당 지목 필지가 없습니다. (총 ${feats.length}건 중 대상필지 중복 제외 후 0건)`);
+      return;
+    }
     renderAdjacentLayer(type, filtered, cfg);
     updateProgress(1, 1, `${cfg.label}: ${filtered.length}건 표시 (대상필지 제외)`);
   } catch (e) {
