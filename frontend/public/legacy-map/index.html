@@ -144,6 +144,15 @@
           <label><input type="checkbox" id="toggle-cadastral" checked /> 지적편집도 표시</label>
           <label><input type="checkbox" id="toggle-labels" checked /> 지번 라벨</label>
         </div>
+        <div class="filter-group" id="group-adjacent-layers">
+          <strong>인접 부지 오버레이</strong>
+          <label><input type="checkbox" class="layer-toggle" value="road" /> <span class="layer-swatch" style="background:#9e9e9e"></span> 도로</label>
+          <label><input type="checkbox" class="layer-toggle" value="ditch" /> <span class="layer-swatch" style="background:#00bcd4"></span> 구거</label>
+          <label><input type="checkbox" class="layer-toggle" value="river" /> <span class="layer-swatch" style="background:#2196f3"></span> 하천·제방·유지</label>
+          <label><input type="checkbox" class="layer-toggle" value="public" /> <span class="layer-swatch" style="background:#ffd54f"></span> 국공유지 <small>(β)</small></label>
+          <label><input type="checkbox" class="layer-toggle" value="military" /> <span class="layer-swatch" style="background:#d84315"></span> 군유지 <small>(β)</small></label>
+          <p class="hint" style="margin:6px 0 0;font-size:10px;opacity:0.75;">대상 34필지 범위 +300m 버퍼 조회. 국공유지/군유지는 VWorld 소유구분 속성 제한으로 heuristic 판정.</p>
+        </div>
         <div class="filter-group" id="group-3d-only">
           <strong>3D 전용</strong>
           <label><input type="checkbox" id="toggle-google-3d" /> Google 실사 3D 건물</label>

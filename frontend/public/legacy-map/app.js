@@ -163,7 +163,126 @@ function startMap(key) {
   });
 
   // 필지 로드
-  loadAllParcels(key);
+  loadAllParcels(key).then(() => setupAdjacentLayers(key));
+}
+
+// ==================== 인접 부지 오버레이 ====================
+// VWorld 지목코드 (LP_PA_CBND_BUBUN `jimok` 속성)
+//   14=도로, 16=제방, 17=하천, 18=구거, 19=유지
+// 국공유지/군유지는 VWorld 지적도에 소유구분이 없어
+// `posesn_se_cd` 등 비표준 속성 시도 후 실패 시 안내만 노출.
+const ADJ_LAYER_CONFIG = {
+  road:     { label: '도로',          color: '#616161', attrFilter: 'jimok:=:14' },
+  ditch:    { label: '구거',          color: '#00bcd4', attrFilter: 'jimok:=:18' },
+  river:    { label: '하천·제방·유지', color: '#1976d2', attrFilter: 'jimok:IN:(16,17,19)' },
+  public:   { label: '국공유지',      color: '#ffa000', attrFilter: null, ownership: ['국','공'] },
+  military: { label: '군유지',        color: '#d84315', attrFilter: null, ownership: ['군'] },
+};
+
+const adjacentLayerGroups = {}; // type -> L.LayerGroup
+let _adjBBoxCached = null;
+
+function getTargetBBoxString() {
+  if (_adjBBoxCached) return _adjBBoxCached;
+  const polys = Object.values(polygonsById);
+  if (polys.length === 0) return null;
+  let bounds = polys[0].polygon.getBounds();
+  polys.slice(1).forEach(({polygon}) => { bounds = bounds.extend(polygon.getBounds()); });
+  const pad = 0.003; // 약 300m
+  const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+  _adjBBoxCached = `BOX(${sw.lng - pad},${sw.lat - pad},${ne.lng + pad},${ne.lat + pad})`;
+  return _adjBBoxCached;
+}
+
+async function loadAdjacentLayer(type, key) {
+  const cfg = ADJ_LAYER_CONFIG[type];
+  if (!cfg) return;
+  const bbox = getTargetBBoxString();
+  if (!bbox) { alert('필지 로드 완료 후 다시 시도해주세요'); return; }
+
+  // 국공유지/군유지: 소유구분 속성 미제공 — 안내 후 종료
+  if (!cfg.attrFilter) {
+    alert(
+      `${cfg.label} 레이어는 VWorld 공개 지적도(LP_PA_CBND_BUBUN)에\n` +
+      `소유구분 속성이 없어 지도 표시가 불가합니다.\n\n` +
+      `추후 KAIS/등기 연계 후 복구 예정.`
+    );
+    const cb = document.querySelector(`.layer-toggle[value="${type}"]`);
+    if (cb) cb.checked = false;
+    return;
+  }
+
+  const params = { geomFilter: bbox, attrFilter: cfg.attrFilter, size: '1000' };
+  updateProgress(0, 1, `${cfg.label} 로드 중...`);
+  try {
+    const feats = await wfsQuery(params, key);
+    // 대상 34필지와 겹치는 항목 제외 (이미 다른 색으로 표시됨)
+    const targetPnus = new Set();
+    Object.values(polygonsById).forEach(({polygon}) => {
+      const f = polygon.feature;
+      if (f && f.properties && f.properties.pnu) targetPnus.add(f.properties.pnu);
+    });
+    const filtered = feats.filter(f => !targetPnus.has(f.properties?.pnu));
+    renderAdjacentLayer(type, filtered, cfg);
+    updateProgress(1, 1, `${cfg.label}: ${filtered.length}건 표시 (대상필지 제외)`);
+  } catch (e) {
+    console.error(`[adjacent] ${cfg.label} 로드 실패:`, e);
+    alert(`${cfg.label} 로드 실패: ${e.message}`);
+  }
+}
+
+function renderAdjacentLayer(type, features, cfg) {
+  const group = L.layerGroup();
+  features.forEach(f => {
+    const layer = L.geoJSON(f, {
+      style: {
+        color: cfg.color,
+        weight: 1.5,
+        opacity: 0.9,
+        fillColor: cfg.color,
+        fillOpacity: 0.22,
+        dashArray: type === 'road' ? '4,3' : null,
+      },
+    });
+    const p = f.properties || {};
+    layer.bindPopup(
+      `<div class="popup-title">${cfg.label}</div>` +
+      `<div class="popup-row"><strong>지번</strong><span>${p.jibun || '-'}</span></div>` +
+      `<div class="popup-row"><strong>지목코드</strong><span>${p.jimok || '-'}</span></div>` +
+      (p.pnu ? `<div class="popup-row"><strong>PNU</strong><span style="font-family:monospace;font-size:11px">${p.pnu}</span></div>` : '')
+    );
+    layer.addTo(group);
+  });
+  group.addTo(map);
+  // 대상 필지·라벨 위로 올리지 않고 밑에 깔리게
+  Object.values(polygonsById).forEach(({polygon, label}) => {
+    polygon.bringToFront();
+    if (label) label.setZIndexOffset(1000);
+  });
+  adjacentLayerGroups[type] = group;
+}
+
+function removeAdjacentLayer(type) {
+  const g = adjacentLayerGroups[type];
+  if (g) {
+    map.removeLayer(g);
+    delete adjacentLayerGroups[type];
+  }
+}
+
+function setupAdjacentLayers(key) {
+  document.querySelectorAll('.layer-toggle').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const type = cb.value;
+      if (cb.checked) {
+        cb.disabled = true;
+        try { await loadAdjacentLayer(type, key); }
+        finally { cb.disabled = false; }
+      } else {
+        removeAdjacentLayer(type);
+      }
+    });
+  });
 }
 
 // ==================== 필지 목록 (사이드바) ====================

@@ -135,6 +135,16 @@ main {
 .filter-group.collapsed > *:not(strong) {
   display: none;
 }
+.layer-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 2px;
+  vertical-align: -2px;
+  margin: 0 2px;
+}
+
 .filter-group > strong {
   cursor: pointer;
   user-select: none;
