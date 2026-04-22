@@ -12,12 +12,30 @@ class Settings(BaseSettings):
 
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_access_ttl_min: int = 60 * 24
+    jwt_access_ttl_min: int = 15
+    jwt_refresh_ttl_days: int = 30
+
+    cookie_secure: bool = False
+    cookie_domain: str = ""
+    cookie_samesite: str = "lax"
 
     admin_email: str = "choonwoo49@gmail.com"
     admin_password: str = "changeme-on-first-boot"
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    # Email
+    resend_api_key: str = ""
+    email_from: str = "noreply@joojooland.twinverse.org"
+    email_from_name: str = "JooJooLand"
+    password_reset_ttl_min: int = 30
+
+    # Upload
+    upload_dir: str = "./uploads"
+    max_upload_mb: int = 200
+
+    # Frontend URL (for email links)
+    frontend_url: str = "http://localhost:5173"
 
     openclaw_ws_url: str = "ws://192.168.219.117:18789"
     openclaw_agent_pet: str = "joojoo-pet-agent"

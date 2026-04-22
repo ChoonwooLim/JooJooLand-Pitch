@@ -8,7 +8,19 @@ engine = create_engine(settings.database_url, echo=False, connect_args=connect_a
 
 
 def init_db() -> None:
-    from app.models import user, pet, clone, parcel, dataroom_doc  # noqa: F401
+    from app.models import (  # noqa: F401
+        user,
+        pet,
+        clone,
+        parcel,
+        dataroom_doc,
+        upgrade_request,
+        contact_lead,
+        content_block,
+        ai_chat_log,
+        email_log,
+        download_log,
+    )
     SQLModel.metadata.create_all(engine)
 
 
