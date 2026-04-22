@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
+import logging
 import re
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from .core.config import get_settings
@@ -15,6 +17,7 @@ from .models.user import User
 from .routers import auth, content, pets, parcels, ai, vworld, upgrade, leads, dataroom
 from .routers.admin import admin_router
 
+logger = logging.getLogger("joojooland.migrate")
 settings = get_settings()
 
 HASHED_ASSET_RE = re.compile(r"/assets/.*-[A-Za-z0-9_-]{6,}\.[a-z0-9]+$")
@@ -55,6 +58,36 @@ SEED_BLOCKS: list[tuple[str, str, str, str, str, int]] = [
 ]
 
 
+ALTERS_POSTGRES = [
+    'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS phone VARCHAR',
+    'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS company VARCHAR',
+    'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE',
+    'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITHOUT TIME ZONE',
+    "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS uploaded_by INTEGER",
+    "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1",
+    "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS description VARCHAR",
+    "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE",
+]
+
+
+def _auto_migrate(db: Session) -> None:
+    """기존 테이블에 신규 컬럼 보정 (Postgres 전용 간이 마이그레이션).
+
+    SQLModel `create_all()` 은 이미 존재하는 테이블의 스키마를 변경하지 않으므로,
+    모델에 추가된 컬럼을 `ADD COLUMN IF NOT EXISTS` 로 보정한다.
+    SQLite 는 로컬 개발용이고 신규 DB 로 시작하므로 생략.
+    """
+    if not settings.database_url.startswith("postgres"):
+        return
+    for sql in ALTERS_POSTGRES:
+        try:
+            db.exec(text(sql))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.warning("migrate skip: %s — %s", sql[:80], str(e)[:120])
+
+
 def _seed_superadmin(db: Session) -> None:
     existing = db.exec(select(User).where(User.email == settings.admin_email)).first()
     if existing:
@@ -91,6 +124,7 @@ async def lifespan(app: FastAPI):
     init_db()
     _ensure_upload_dir()
     with Session(engine) as db:
+        _auto_migrate(db)
         _seed_superadmin(db)
         _seed_content_blocks(db)
     yield
