@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import AuroraBackground from '../components/hero/AuroraBackground.jsx';
+import CosmicVFX from '../components/hero/CosmicVFX.jsx';
 import CTAButton from '../components/common/CTAButton.jsx';
 import SectionTitle from '../components/common/SectionTitle.jsx';
 import styles from './Home.module.css';
@@ -13,6 +14,7 @@ export default function Home() {
       {/* HERO */}
       <section className={styles.hero}>
         <AuroraBackground />
+        <CosmicVFX />
         <div className={styles.heroInner}>
           <div className={styles.badge}>{t('home.hero.badge')}</div>
           <h1 className={styles.heroTitle}>
