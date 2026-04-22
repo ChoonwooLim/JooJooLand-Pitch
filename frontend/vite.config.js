@@ -25,12 +25,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'three-vendor': ['three', '@react-three/fiber', '@react-three/drei'],
-          'map-vendor': ['leaflet', 'react-leaflet'],
-          'i18n-vendor': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
-          'motion-vendor': ['framer-motion'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/[\\/](react|react-dom|react-router-dom|react-router|scheduler)[\\/]/.test(id)) return 'react-vendor';
+          if (/[\\/](three|@react-three)[\\/]/.test(id)) return 'three-vendor';
+          if (/[\\/](leaflet|react-leaflet)[\\/]/.test(id)) return 'map-vendor';
+          if (/[\\/](i18next|react-i18next|i18next-browser-languagedetector)[\\/]/.test(id)) return 'i18n-vendor';
+          if (/[\\/]framer-motion[\\/]/.test(id)) return 'motion-vendor';
         },
       },
     },
