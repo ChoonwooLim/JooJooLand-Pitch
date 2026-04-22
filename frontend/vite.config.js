@@ -32,6 +32,9 @@ export default defineConfig({
           if (/[\\/](leaflet|react-leaflet)[\\/]/.test(id)) return 'map-vendor';
           if (/[\\/](i18next|react-i18next|i18next-browser-languagedetector)[\\/]/.test(id)) return 'i18n-vendor';
           if (/[\\/]framer-motion[\\/]/.test(id)) return 'motion-vendor';
+          if (/[\\/]@mantine[\\/]/.test(id)) return 'mantine-vendor';
+          if (/[\\/]@tabler[\\/]icons-react[\\/]/.test(id)) return 'icons-vendor';
+          if (/[\\/]recharts[\\/]/.test(id)) return 'charts-vendor';
         },
       },
     },
