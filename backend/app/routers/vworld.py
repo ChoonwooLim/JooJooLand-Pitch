@@ -13,8 +13,11 @@ VWORLD_BASE = "https://api.vworld.kr/req"
 
 @router.get("/config.js", response_class=PlainTextResponse)
 def vworld_config_js():
-    key = get_settings().vworld_api_key or ""
-    body = f"window.VWORLD_KEY = {json.dumps(key)};\n"
+    s = get_settings()
+    body = (
+        f"window.VWORLD_KEY = {json.dumps(s.vworld_api_key or '')};\n"
+        f"window.CESIUM_ION_TOKEN = {json.dumps(s.cesium_ion_token or '')};\n"
+    )
     return Response(
         content=body,
         media_type="application/javascript; charset=utf-8",

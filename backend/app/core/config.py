@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     ue5_pixel_streamer_url: str = "http://192.168.219.117:8080"
 
     vworld_api_key: str = ""
+    cesium_ion_token: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
