@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LangToggle from './LangToggle.jsx';
+import { useAuth } from '../../features/auth/AuthContext.jsx';
+import { roleLabel } from '../../lib/format.js';
 import styles from './Header.module.css';
 
 const NAV_ITEMS = [
@@ -20,12 +22,21 @@ export default function Header() {
   const { t } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenu, setUserMenu] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  const onLogout = async () => {
+    setUserMenu(false);
+    await logout();
+    navigate('/');
+  };
 
   return (
     <header className={`${styles.header} ${scrolled ? styles.scrolled : ''}`}>
@@ -51,6 +62,43 @@ export default function Header() {
 
         <div className={styles.actions}>
           <LangToggle />
+          {user ? (
+            <div className={styles.userWrap}>
+              <button
+                className={styles.userBadge}
+                onClick={() => setUserMenu((v) => !v)}
+                aria-expanded={userMenu}
+              >
+                <span className={styles.userAvatar}>
+                  {(user.display_name || user.email).charAt(0).toUpperCase()}
+                </span>
+                <span className={styles.userName}>{user.display_name || user.email.split('@')[0]}</span>
+                <span className={styles.userRole}>{roleLabel(user.role)}</span>
+              </button>
+              {userMenu && (
+                <div className={styles.userDropdown} role="menu">
+                  {(user.role === 'admin' || user.role === 'superadmin') && (
+                    <Link to="/admin" className={styles.userMenuItem} onClick={() => setUserMenu(false)}>
+                      어드민
+                    </Link>
+                  )}
+                  {user.role === 'guest' && (
+                    <Link to="/upgrade" className={styles.userMenuItem} onClick={() => setUserMenu(false)}>
+                      투자자 등업
+                    </Link>
+                  )}
+                  {(user.role === 'investor' || user.role === 'admin' || user.role === 'superadmin') && (
+                    <Link to="/dataroom" className={styles.userMenuItem} onClick={() => setUserMenu(false)}>
+                      DataRoom
+                    </Link>
+                  )}
+                  <button className={styles.userMenuItem} onClick={onLogout}>로그아웃</button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link to="/login" className={styles.loginCta}>로그인</Link>
+          )}
           <button
             className={styles.menuToggle}
             aria-label="Toggle menu"
