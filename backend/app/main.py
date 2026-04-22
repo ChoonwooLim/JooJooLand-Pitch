@@ -9,7 +9,7 @@ from .core.config import get_settings
 from .core.db import engine, init_db
 from .core.security import hash_password
 from .models.user import User
-from .routers import auth, content, pets, parcels, ai
+from .routers import auth, content, pets, parcels, ai, vworld
 
 settings = get_settings()
 
@@ -61,6 +61,7 @@ app.include_router(auth.router)
 app.include_router(pets.router)
 app.include_router(parcels.router)
 app.include_router(ai.router)
+app.include_router(vworld.router)
 
 
 @app.get("/health")

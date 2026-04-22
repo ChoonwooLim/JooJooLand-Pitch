@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     ue5_signaling_url: str = "ws://192.168.219.117:8888"
     ue5_pixel_streamer_url: str = "http://192.168.219.117:8080"
 
+    vworld_api_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
