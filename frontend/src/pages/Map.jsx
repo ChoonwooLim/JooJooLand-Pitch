@@ -1,0 +1,34 @@
+import { useTranslation } from 'react-i18next';
+import SectionTitle from '../components/common/SectionTitle.jsx';
+import styles from './Map.module.css';
+
+export default function MapPage() {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <section className={styles.hero}>
+        <div className={styles.heroInner}>
+          <SectionTitle
+            eyebrow="Park Grounds"
+            title={t('map.title')}
+            subtitle={t('map.subtitle')}
+            align="center"
+            invert
+          />
+          <p className={styles.hint}>{t('map.hint')}</p>
+        </div>
+      </section>
+
+      <section className={styles.mapHost}>
+        <iframe
+          src="/legacy-map/index.html"
+          title={t('map.title')}
+          className={styles.mapFrame}
+          loading="eager"
+          allow="geolocation; xr-spatial-tracking"
+        />
+      </section>
+    </>
+  );
+}

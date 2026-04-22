@@ -1,0 +1,33 @@
+name: joojooland-pitch-api
+service: backend
+runtime: python-3.12
+build:
+  dockerfile: backend/Dockerfile
+  context: backend
+resources:
+  cpu: "0.5"
+  memory: 512Mi
+env:
+  APP_NAME: "JooJooLand Pitch API"
+  ENV: production
+  DATABASE_URL: "postgresql://orbitron_user:orbitron_db_pass@orbitron-joojooland-db:3183/orbitron_db"
+  JWT_SECRET: "${secret:joojooland_jwt_secret}"
+  ADMIN_EMAIL: "choonwoo49@gmail.com"
+  ADMIN_PASSWORD: "${secret:joojooland_admin_bootstrap}"
+  CORS_ORIGINS: "https://joojooland.com,https://www.joojooland.com"
+  OPENCLAW_WS_URL: "ws://192.168.219.117:18789"
+  OPENCLAW_AGENT_PET: "joojoo-pet-agent"
+  OPENCLAW_MODEL_DEFAULT: "anthropic/claude-opus-4-7"
+  OPENCLAW_MODEL_AGENT: "openai-codex/gpt-5.4"
+  OPENCLAW_MODEL_VISION: "anthropic/claude-sonnet-4-6"
+  UE5_SIGNALING_URL: "ws://192.168.219.117:8888"
+  UE5_PIXEL_STREAMER_URL: "http://192.168.219.117:8080"
+healthcheck:
+  path: /health
+  port: 8000
+ports:
+  - 8000
+db:
+  - name: orbitron-joojooland-db
+    engine: postgres
+    version: 16
