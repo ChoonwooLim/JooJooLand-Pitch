@@ -153,7 +153,7 @@
         parcel_no: parseInt(no, 10),
         geometry: f.geometry,
         layers: ['imsang', 'sanji', 'landslide', 'soil', 'productivity',
-                 'forest_function', 'state_forest', 'public_forest'],
+                 'forest_function', 'state_forest', 'private_forest'],
       });
     });
     if (items.length === 0) return null;
@@ -187,7 +187,7 @@
     } catch { return null; }
   }
 
-  let _slopeResult = null;
+  let _slopeResult = null;   // 네이밍 그대로(산사태위험 결과 담음)
   async function fetchSlope() {
     const items = [];
     Object.values(window.polygonsById || {}).forEach(entry => {
@@ -196,7 +196,8 @@
     });
     if (items.length === 0) return null;
     try {
-      const r = await fetch('/api/forest/slope-batch', {
+      // 새 엔드포인트 /landslide-batch. 옛 /slope-batch 도 alias 로 유지.
+      const r = await fetch('/api/forest/landslide-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parcels: items }),
@@ -234,8 +235,9 @@
       soil: '🌱 산림입지 (토양·모암)',
       productivity: '🌳 임지 생산능력',
       forest_function: '🎯 산림기능 (휴양·보전·수자원 등)',
-      state_forest: '🏛️ 국유림 인접',
-      public_forest: '🏢 공유림 인접',
+      state_forest: '🏛️ 국유림 경제림 인접',
+      private_forest: '🌲 사유림 경제림 인접',
+      public_forest: '🏢 공유림 인접',  // 옛 이름 호환
     };
     const blocks = Object.entries(ps).map(([layer, items]) => {
       if (!items || items.length === 0) return '';
@@ -298,41 +300,44 @@
   }
 
   function slopeSection() {
+    // 산사태위험 래스터 분석. 래스터 데이터는 DATA016 = 산사태위험지도.
+    // 함수명은 하위호환상 slopeSection 유지 (섹션 라벨에서 '산사태위험' 로 표기).
     if (!_forestStatus) return `<p class="linfo-hint">조회 중...</p>`;
-    if (!_forestStatus.slope_raster_ready) {
+    const ready = _forestStatus.landslide_raster_ready ?? _forestStatus.slope_raster_ready;
+    if (!ready) {
       return `<div class="linfo-notice">
-        <strong>ℹ️ 경사도 래스터 미설정</strong> — 환경변수 <code>SLOPE_RASTER_PATH</code> 에 GeoTIFF 경로 지정 필요.
+        <strong>ℹ️ 산사태위험 래스터 미설정</strong> — 환경변수 <code>LANDSLIDE_RASTER_PATH</code> 에 GeoTIFF 경로 지정 필요.
       </div>`;
     }
-    if (!_slopeResult) return `<p class="linfo-hint">경사도 zonal stats 계산 중...</p>`;
+    if (!_slopeResult) return `<p class="linfo-hint">산사태위험 zonal stats 계산 중...</p>`;
     const r = _slopeResult;
-    if (!r.items || r.items.length === 0) return `<p class="linfo-hint">경사도 데이터 없음</p>`;
+    if (!r.items || r.items.length === 0) return `<p class="linfo-hint">데이터 없음</p>`;
+    // 산림청 산사태위험등급: 1=매우높음(빨강) ~ 5=매우낮음(초록). 색상 반전.
+    const colorByGrade = { 1: '#f44336', 2: '#ff9800', 3: '#ffc107', 4: '#8bc34a', 5: '#4caf50' };
     const rows = r.items.map(it => {
-      const hueClass = it.grade <= 2 ? 'accent' : '';
+      const hueClass = it.grade >= 4 ? 'accent' : '';
       return `<tr class="${hueClass}">
         <td><strong>${it.grade}</strong> ${it.label}</td>
         <td class="num">${fmt(Math.round(it.area_m2))}</td>
         <td class="num">${fmt(Math.round(it.area_pyeong))}</td>
         <td class="num">${it.pct}%</td>
-        <td><div class="linfo-bar"><div class="linfo-bar-fill" style="width:${it.pct}%;background:${
-          it.grade <= 2 ? '#4caf50' : it.grade === 3 ? '#ffc107' : it.grade === 4 ? '#ff9800' : '#f44336'
-        }"></div></div></td>
+        <td><div class="linfo-bar"><div class="linfo-bar-fill" style="width:${it.pct}%;background:${colorByGrade[it.grade] || '#999'}"></div></div></td>
       </tr>`;
     }).join('');
-    // 개발 가능 비율 (등급 1-2 합)
-    const dev = r.items.filter(x => x.grade <= 2).reduce((s, x) => s + x.area_m2, 0);
-    const devPct = r.total_area_m2 > 0 ? (dev / r.total_area_m2 * 100) : 0;
+    // 안전 비율 (4-5 등급 = 낮음/매우낮음 합)
+    const safe = r.items.filter(x => x.grade >= 4).reduce((s, x) => s + x.area_m2, 0);
+    const safePct = r.total_area_m2 > 0 ? (safe / r.total_area_m2 * 100) : 0;
     return `
       <div class="linfo-stats-grid">
         ${statRow('분석 면적', fmt(Math.round(r.total_area_m2)), '㎡', true)}
         ${statRow('픽셀 해상도', `${r.pixel_size_m}`, 'm')}
-        ${statRow('개발 가능 (1~2등급)', fmt1(devPct), '%', true)}
+        ${statRow('안전 구간 (4~5등급)', fmt1(safePct), '%', true)}
       </div>
       <table class="linfo-table" style="margin-top:10px;">
         <thead><tr><th>등급</th><th class="num">㎡</th><th class="num">평</th><th class="num">비율</th><th>분포</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <p class="linfo-hint">등급 1·2 = 평탄~완경사 (~20°) → 건축·개발 적합 / 3+ 등급은 경사가 가파름.</p>
+      <p class="linfo-hint">산림청 산사태위험등급: 1=매우높음 ~ 5=매우낮음. 4~5등급이 낮은 위험 구간.</p>
     `;
   }
 
@@ -556,8 +561,8 @@
       sectionCard('📐 산림 분석 (SHP 자체 계산)',
         '서버에 적재된 임상도·산림입지·임지생산능력과 교집합 실측',
         forestApiSection()),
-      sectionCard('⛰️ 경사도 분포 (래스터 zonal stats)',
-        '10m 해상도 GeoTIFF 와 교차 — 개발 가능 면적의 정량 근거',
+      sectionCard('⚠️ 산사태위험등급 분포 (래스터)',
+        '10m 해상도 산사태위험등급도와 교차 — 안전성 정량 평가',
         slopeSection()),
       sectionCard('🛣️ 임도 접근성',
         '반경 2km 내 임도 (산림청 FRRD) — 차량 접근성·시공 장비 반입 근거',
@@ -590,7 +595,8 @@
     if (hasPoi && !_nearbyPoiResult) {
       _nearbyPoiResult = await fetchNearbyPoi(3000);
     }
-    if (_forestStatus?.slope_raster_ready && !_slopeResult) {
+    const rasterReady = _forestStatus?.landslide_raster_ready ?? _forestStatus?.slope_raster_ready;
+    if (rasterReady && !_slopeResult) {
       _slopeResult = await fetchSlope();
     }
     if ((layers.forest_road || 0) > 0 && !_roadsResult) {

@@ -304,7 +304,9 @@ def analyze_parcel(
                 ff = classify_forest_function(feat.attrs)
                 key = classify_forest_function_category(feat.attrs)
                 bucket[key]["detail"] = ff
-            elif layer in ("state_forest", "public_forest"):
+            elif layer in ("state_forest", "private_forest", "public_forest"):
+                # state_forest=국유림(DATA021), private_forest=사유림(DATA022).
+                # public_forest 는 옛 이름 — 데이터 내용은 사유림이라 호환만 유지.
                 sf = classify_state_forest(feat.attrs)
                 key = classify_state_forest_category(feat.attrs)
                 bucket[key]["detail"] = sf

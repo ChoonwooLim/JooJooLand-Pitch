@@ -20,7 +20,7 @@ from ..services.forest_gis import (
     nearby_poi, nearby_poi_project,
     nearby_forest_roads_project,
 )
-from ..services.forest_raster import analyze_slope_raster
+from ..services.forest_raster import analyze_landslide_raster
 
 router = APIRouter(prefix="/api/forest", tags=["forest"])
 
@@ -41,15 +41,18 @@ class AnalyzeBatchRequest(BaseModel):
 @router.get("/status")
 def status(db: Session = Depends(get_session)) -> dict:
     counts = dataset_status(db)
-    s = get_settings()
     from pathlib import Path as _P
-    slope_ready = bool(s.slope_raster_path and _P(s.slope_raster_path).exists())
+    path = _landslide_path()
+    raster_ready = bool(path and _P(path).exists())
     return {
         "loaded_layers": counts,
         "total_features": sum(counts.values()),
         "ready": bool(counts),
-        "slope_raster_ready": slope_ready,
-        "slope_raster_path": s.slope_raster_path if slope_ready else None,
+        # 새 이름 + 옛 이름 둘 다 반환 (프론트 하위호환)
+        "landslide_raster_ready": raster_ready,
+        "landslide_raster_path": path if raster_ready else None,
+        "slope_raster_ready": raster_ready,
+        "slope_raster_path": path if raster_ready else None,
     }
 
 
@@ -130,41 +133,58 @@ def nearby_poi_one(req: NearbyPOIOneRequest, db: Session = Depends(get_session))
         raise HTTPException(status_code=500, detail=f"nearby-poi-one 실패: {e}")
 
 
-class SlopeRequest(BaseModel):
+def _landslide_path() -> str:
+    s = get_settings()
+    # landslide_raster_path 우선, 없으면 slope_raster_path (옛 이름)
+    return s.landslide_raster_path or s.slope_raster_path
+
+
+class LandslideRequest(BaseModel):
     geometry: dict[str, Any]
 
 
-@router.post("/slope")
-def slope_analyze(req: SlopeRequest) -> dict:
-    """파셀 폴리곤 + 경사도 래스터 zonal stats."""
-    s = get_settings()
-    if not s.slope_raster_path:
-        raise HTTPException(status_code=503, detail="SLOPE_RASTER_PATH 미설정")
+@router.post("/landslide")
+def landslide_analyze(req: LandslideRequest) -> dict:
+    """파셀 폴리곤 + 산사태위험등급 래스터 zonal stats."""
+    path = _landslide_path()
+    if not path:
+        raise HTTPException(status_code=503, detail="LANDSLIDE_RASTER_PATH 미설정")
     try:
-        return analyze_slope_raster(req.geometry, s.slope_raster_path)
+        return analyze_landslide_raster(req.geometry, path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"slope 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"landslide 실패: {e}")
 
 
-class SlopeBatchRequest(BaseModel):
+class LandslideBatchRequest(BaseModel):
     parcels: list[dict[str, Any]] = Field(..., description="GeoJSON geometry 배열")
 
 
-@router.post("/slope-batch")
-def slope_batch(req: SlopeBatchRequest) -> dict:
-    """여러 파셀 union 한 번에 경사도 분석."""
-    s = get_settings()
-    if not s.slope_raster_path:
-        raise HTTPException(status_code=503, detail="SLOPE_RASTER_PATH 미설정")
+@router.post("/landslide-batch")
+def landslide_batch(req: LandslideBatchRequest) -> dict:
+    """여러 파셀 union 한 번에 산사태위험 분석."""
+    path = _landslide_path()
+    if not path:
+        raise HTTPException(status_code=503, detail="LANDSLIDE_RASTER_PATH 미설정")
     if not req.parcels:
         return {"total_pixels": 0, "items": []}
     try:
         from shapely.ops import unary_union
         from shapely.geometry import shape, mapping
         union = unary_union([shape(g) for g in req.parcels])
-        return analyze_slope_raster(mapping(union), s.slope_raster_path)
+        return analyze_landslide_raster(mapping(union), path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"slope-batch 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"landslide-batch 실패: {e}")
+
+
+# 옛 이름 별칭 (하위 호환)
+@router.post("/slope")
+def slope_analyze_alias(req: LandslideRequest) -> dict:
+    return landslide_analyze(req)
+
+
+@router.post("/slope-batch")
+def slope_batch_alias(req: LandslideBatchRequest) -> dict:
+    return landslide_batch(req)
 
 
 class ForestRoadsRequest(BaseModel):

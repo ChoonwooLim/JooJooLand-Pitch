@@ -191,7 +191,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--layer", required=True, choices=[
         "imsang", "sanji", "landslide", "soil", "productivity",
-        "mountain_poi", "forest_road", "state_forest", "public_forest", "forest_function",
+        "mountain_poi", "forest_road", "state_forest", "private_forest",
+        "public_forest",  # 옛 이름 호환
+        "forest_function",
     ])
     ap.add_argument("--file", required=True)
     ap.add_argument("--bbox", required=True, help="lngMin,latMin,lngMax,latMax (EPSG:4326)")

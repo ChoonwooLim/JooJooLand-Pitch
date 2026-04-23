@@ -62,8 +62,11 @@ class Settings(BaseSettings):
     project_bbox: str = "127.50,37.30,127.85,37.60"  # 양평 기본값
     project_name: str = "JooJooLand"
 
-    # 경사도 래스터 (GeoTIFF) 파일 경로 — 파셀별 zonal stats 계산용
-    slope_raster_path: str = ""
+    # 산사태위험등급 래스터 (GeoTIFF) 파일 경로 — 파셀별 zonal stats 계산용
+    # 이전 'slope_raster_path' 였으나 실제 데이터가 산사태위험(DATA016)이라 정정.
+    # .env 에서 둘 다 허용 (하위 호환).
+    landslide_raster_path: str = ""
+    slope_raster_path: str = ""  # 옛 이름 (env 호환)
 
     @property
     def cors_origin_list(self) -> list[str]:

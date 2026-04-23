@@ -85,7 +85,8 @@ def main():
     ap.add_argument("--layer", required=True,
                     choices=[
                         "imsang", "sanji", "landslide", "soil", "productivity", "mountain_poi",
-                        "forest_road", "state_forest", "public_forest", "forest_function", "auto",
+                        "forest_road", "state_forest", "private_forest", "public_forest",
+                        "forest_function", "auto",
                     ],
                     help="적재할 레이어. 'auto' 면 SHP 컬럼 스키마로 자동 판정")
     ap.add_argument("--source-dir", required=True, help="도엽 ZIP 이 모여있는 디렉토리")
