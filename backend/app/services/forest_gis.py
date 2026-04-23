@@ -86,6 +86,78 @@ def classify_landslide(attrs: dict) -> str:
     return raw or "미분류"
 
 
+# 산림입지도 (DATA015) — 토성·토심·모암 기반 정규화
+_SOIL_TP_MAP = {
+    # SLTP_CD (토양형 대표 코드). 산림청 표준.
+    # 필요시 실제 코드 보고 조정. 일단 그대로 반환.
+}
+_DEPTH_MAP = {
+    "1": "30cm 미만", "2": "30-60cm", "3": "60cm 이상",
+    "천심": "30cm 미만", "중심": "30-60cm", "심심": "60cm 이상",
+}
+_TEXTURE_MAP = {
+    "1": "사토", "2": "사양토", "3": "양토", "4": "식양토", "5": "식토",
+}
+_ROCK_MAP = {
+    "퇴적암": "퇴적암", "화성암": "화성암", "변성암": "변성암",
+}
+
+
+def classify_soil_category(attrs: dict) -> str:
+    """산림입지도 피처의 '대표 카테고리' = 토양형(SLTP_CD) 로."""
+    raw = str(_pick(attrs, "SLTP_CD", "sltp_cd", "SOIL_TYPE", "soil_type") or "")
+    return raw.strip() or "미분류"
+
+
+def classify_soil(attrs: dict) -> dict:
+    """산림입지도 상세 속성 → 한글 dict."""
+    rock = str(_pick(attrs, "PRRCK_LARG", "prrck_larg") or "")
+    depth = str(_pick(attrs, "SLDPT_TPCD", "sldpt_tpcd") or "")
+    texture = str(_pick(attrs, "SCSTX_CD", "scstx_cd") or "")
+    altt = _pick(attrs, "LOCTN_ALTT", "loctn_altt")
+    angle = _pick(attrs, "EIGHT_AGL", "eight_agl")
+    return {
+        "토양형":  classify_soil_category(attrs),
+        "모암":    _ROCK_MAP.get(rock, rock),
+        "토심":    _DEPTH_MAP.get(depth, depth),
+        "토성":    _TEXTURE_MAP.get(texture, texture),
+        "해발(m)": altt,
+        "경사(°)": angle,
+        "지형": _pick(attrs, "TPGRP_TPCD", "tpgrp_tpcd"),
+    }
+
+
+# 임지생산능력급지도 (DATA014) — 주수종별 지위지수
+def classify_productivity_category(attrs: dict) -> str:
+    """대표 카테고리 = 종합 지위지수(STQGD_VAL) 등급"""
+    raw = _pick(attrs, "STQGD_VAL", "stqgd_val", "GRADE")
+    if raw is None:
+        return "미분류"
+    try:
+        v = float(raw)
+        if v >= 16: return "Ⅰ등급(최상)"
+        if v >= 13: return "Ⅱ등급(상)"
+        if v >= 10: return "Ⅲ등급(중)"
+        if v >=  7: return "Ⅳ등급(하)"
+        return "Ⅴ등급(최하)"
+    except Exception:
+        return str(raw)
+
+
+def classify_productivity(attrs: dict) -> dict:
+    pick = lambda *k: _pick(attrs, *k)  # noqa: E731
+    return {
+        "종합지수":     pick("STQGD_VAL", "stqgd_val"),
+        "낙엽송지수":   pick("LARCH_STIN", "larch_stin"),
+        "잣나무지수":   pick("KRPN_STIND", "krpn_stind"),
+        "소나무지수":   pick("CNDST_PINE", "cndst_pine"),
+        "아까시지수":   pick("ACTSM_STIN", "actsm_stin"),
+        "자작지수":     pick("JBLPN_STIN", "jblpn_stin"),
+        "평균수고":     pick("TRHGH_AVRG", "trhgh_avrg"),
+        "토양형":       pick("SLTP_CD", "sltp_cd"),
+    }
+
+
 # ==================== 메인 분석 함수 ====================
 
 def analyze_parcel(
@@ -138,7 +210,15 @@ def analyze_parcel(
             elif layer == "imsang":
                 im = classify_imsang(feat.attrs)
                 key = str(im.get("임상") or "미분류")
-                bucket[key]["detail"] = im  # 마지막 값이 대표 (필요시 가중평균으로 개선)
+                bucket[key]["detail"] = im
+            elif layer == "soil":
+                s = classify_soil(feat.attrs)
+                key = str(s.get("토양형") or "미분류")
+                bucket[key]["detail"] = s
+            elif layer == "productivity":
+                p = classify_productivity(feat.attrs)
+                key = classify_productivity_category(feat.attrs)
+                bucket[key]["detail"] = p
             else:
                 key = "기타"
 

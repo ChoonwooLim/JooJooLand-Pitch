@@ -14,7 +14,9 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..core.db import get_session
+from ..core.config import get_settings
 from ..services.forest_gis import analyze_parcel, dataset_status, nearby_poi, nearby_poi_project
+from ..services.forest_raster import analyze_slope_raster
 
 router = APIRouter(prefix="/api/forest", tags=["forest"])
 
@@ -35,10 +37,15 @@ class AnalyzeBatchRequest(BaseModel):
 @router.get("/status")
 def status(db: Session = Depends(get_session)) -> dict:
     counts = dataset_status(db)
+    s = get_settings()
+    from pathlib import Path as _P
+    slope_ready = bool(s.slope_raster_path and _P(s.slope_raster_path).exists())
     return {
         "loaded_layers": counts,
         "total_features": sum(counts.values()),
         "ready": bool(counts),
+        "slope_raster_ready": slope_ready,
+        "slope_raster_path": s.slope_raster_path if slope_ready else None,
     }
 
 
@@ -117,3 +124,40 @@ def nearby_poi_one(req: NearbyPOIOneRequest, db: Session = Depends(get_session))
         return nearby_poi(db, req.geometry, radius_m=req.radius_m, limit=req.limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"nearby-poi-one 실패: {e}")
+
+
+class SlopeRequest(BaseModel):
+    geometry: dict[str, Any]
+
+
+@router.post("/slope")
+def slope_analyze(req: SlopeRequest) -> dict:
+    """파셀 폴리곤 + 경사도 래스터 zonal stats."""
+    s = get_settings()
+    if not s.slope_raster_path:
+        raise HTTPException(status_code=503, detail="SLOPE_RASTER_PATH 미설정")
+    try:
+        return analyze_slope_raster(req.geometry, s.slope_raster_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"slope 실패: {e}")
+
+
+class SlopeBatchRequest(BaseModel):
+    parcels: list[dict[str, Any]] = Field(..., description="GeoJSON geometry 배열")
+
+
+@router.post("/slope-batch")
+def slope_batch(req: SlopeBatchRequest) -> dict:
+    """여러 파셀 union 한 번에 경사도 분석."""
+    s = get_settings()
+    if not s.slope_raster_path:
+        raise HTTPException(status_code=503, detail="SLOPE_RASTER_PATH 미설정")
+    if not req.parcels:
+        return {"total_pixels": 0, "items": []}
+    try:
+        from shapely.ops import unary_union
+        from shapely.geometry import shape, mapping
+        union = unary_union([shape(g) for g in req.parcels])
+        return analyze_slope_raster(mapping(union), s.slope_raster_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"slope-batch 실패: {e}")

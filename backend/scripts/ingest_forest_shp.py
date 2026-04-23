@@ -189,7 +189,7 @@ def ingest_one_layer(
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--layer", required=True, choices=["imsang", "sanji", "landslide", "soil"])
+    ap.add_argument("--layer", required=True, choices=["imsang", "sanji", "landslide", "soil", "productivity", "mountain_poi"])
     ap.add_argument("--file", required=True)
     ap.add_argument("--bbox", required=True, help="lngMin,latMin,lngMax,latMax (EPSG:4326)")
     ap.add_argument("--srid-override", type=int, default=None)

@@ -47,12 +47,16 @@ def detect_layer(fields: list[str]) -> str:
     lower = {f.lower() for f in fields}
     if any(k in lower for k in ("frtp_cd", "frtp_nm", "koftr_nm", "dmcls_cd", "agcls_cd")):
         return "imsang"
+    # productivity (DATA014): 수종별 지위지수 + 입지조사 속성
+    if any(k in lower for k in ("stqgd_val", "larch_stin", "krpn_stind", "cndst_pine", "actsm_stin")):
+        return "productivity"
+    # soil (DATA015): 모암·토심·토성·경사
+    if any(k in lower for k in ("prrck_larg", "sldpt_tpcd", "scstx_cd", "sltp_cd", "eight_agl")):
+        return "soil"
     if any(k in lower for k in ("sanji", "sanji_gbn", "mt_cbnd", "sanji_code")):
         return "sanji"
     if any(k in lower for k in ("lslrsk", "landslide_risk", "mt_lslrsk", "risk_grade")):
         return "landslide"
-    if any(k in lower for k in ("soil", "forest_soil", "soil_cd")):
-        return "soil"
     if any(k in lower for k in ("mntn_nm", "mntn_code", "mntn_id", "pmntn_spot")):
         return "mountain_poi"
     return "unknown"
@@ -70,7 +74,7 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--layer", required=True,
-                    choices=["imsang", "sanji", "landslide", "soil", "mountain_poi", "auto"],
+                    choices=["imsang", "sanji", "landslide", "soil", "productivity", "mountain_poi", "auto"],
                     help="적재할 레이어. 'auto' 면 SHP 컬럼 스키마로 자동 판정")
     ap.add_argument("--source-dir", required=True, help="도엽 ZIP 이 모여있는 디렉토리")
     ap.add_argument("--bbox", default=settings.project_bbox,

@@ -149,11 +149,34 @@
     Object.entries(polyMap).forEach(([no, entry]) => {
       const f = entry?.polygon?.feature;
       if (!f || !f.geometry) return;
-      items.push({ parcel_no: parseInt(no, 10), geometry: f.geometry, layers: ['imsang', 'sanji', 'landslide'] });
+      items.push({
+        parcel_no: parseInt(no, 10),
+        geometry: f.geometry,
+        layers: ['imsang', 'sanji', 'landslide', 'soil', 'productivity'],
+      });
     });
     if (items.length === 0) return null;
     try {
       const r = await fetch('/api/forest/analyze-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcels: items }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  let _slopeResult = null;
+  async function fetchSlope() {
+    const items = [];
+    Object.values(window.polygonsById || {}).forEach(entry => {
+      const f = entry?.polygon?.feature;
+      if (f && f.geometry) items.push(f.geometry);
+    });
+    if (items.length === 0) return null;
+    try {
+      const r = await fetch('/api/forest/slope-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parcels: items }),
@@ -184,7 +207,13 @@
 
   function renderProjectSummary(ps) {
     if (!ps || Object.keys(ps).length === 0) return '';
-    const labelMap = { imsang: '임상 분포', sanji: '산지 구분', landslide: '산사태 위험' };
+    const labelMap = {
+      imsang: '🌲 임상 분포',
+      sanji: '⛰️ 산지 구분',
+      landslide: '⚠️ 산사태 위험',
+      soil: '🌱 산림입지 (토양·모암)',
+      productivity: '🌳 임지 생산능력',
+    };
     const blocks = Object.entries(ps).map(([layer, items]) => {
       if (!items || items.length === 0) return '';
       const rows = items.map(it => `<tr>
@@ -194,8 +223,8 @@
         <td class="num">${fmt(it.parcel_count)}</td>
       </tr>`).join('');
       return `
-        <div class="linfo-subsection">
-          <h4>${labelMap[layer] || layer}</h4>
+        <div class="linfo-subsection" style="margin-top:10px;">
+          <h4 style="margin:8px 0 6px;font-size:13px;color:var(--text-primary);">${labelMap[layer] || layer}</h4>
           <table class="linfo-table">
             <thead><tr><th>분류</th><th class="num">㎡</th><th class="num">평</th><th class="num">필지수</th></tr></thead>
             <tbody>${rows}</tbody>
@@ -203,6 +232,45 @@
         </div>`;
     }).join('');
     return `<div class="linfo-forest-project">${blocks}</div>`;
+  }
+
+  function slopeSection() {
+    if (!_forestStatus) return `<p class="linfo-hint">조회 중...</p>`;
+    if (!_forestStatus.slope_raster_ready) {
+      return `<div class="linfo-notice">
+        <strong>ℹ️ 경사도 래스터 미설정</strong> — 환경변수 <code>SLOPE_RASTER_PATH</code> 에 GeoTIFF 경로 지정 필요.
+      </div>`;
+    }
+    if (!_slopeResult) return `<p class="linfo-hint">경사도 zonal stats 계산 중...</p>`;
+    const r = _slopeResult;
+    if (!r.items || r.items.length === 0) return `<p class="linfo-hint">경사도 데이터 없음</p>`;
+    const rows = r.items.map(it => {
+      const hueClass = it.grade <= 2 ? 'accent' : '';
+      return `<tr class="${hueClass}">
+        <td><strong>${it.grade}</strong> ${it.label}</td>
+        <td class="num">${fmt(Math.round(it.area_m2))}</td>
+        <td class="num">${fmt(Math.round(it.area_pyeong))}</td>
+        <td class="num">${it.pct}%</td>
+        <td><div class="linfo-bar"><div class="linfo-bar-fill" style="width:${it.pct}%;background:${
+          it.grade <= 2 ? '#4caf50' : it.grade === 3 ? '#ffc107' : it.grade === 4 ? '#ff9800' : '#f44336'
+        }"></div></div></td>
+      </tr>`;
+    }).join('');
+    // 개발 가능 비율 (등급 1-2 합)
+    const dev = r.items.filter(x => x.grade <= 2).reduce((s, x) => s + x.area_m2, 0);
+    const devPct = r.total_area_m2 > 0 ? (dev / r.total_area_m2 * 100) : 0;
+    return `
+      <div class="linfo-stats-grid">
+        ${statRow('분석 면적', fmt(Math.round(r.total_area_m2)), '㎡', true)}
+        ${statRow('픽셀 해상도', `${r.pixel_size_m}`, 'm')}
+        ${statRow('개발 가능 (1~2등급)', fmt1(devPct), '%', true)}
+      </div>
+      <table class="linfo-table" style="margin-top:10px;">
+        <thead><tr><th>등급</th><th class="num">㎡</th><th class="num">평</th><th class="num">비율</th><th>분포</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="linfo-hint">등급 1·2 = 평탄~완경사 (~20°) → 건축·개발 적합 / 3+ 등급은 경사가 가파름.</p>
+    `;
   }
 
   function poiSection() {
@@ -423,8 +491,11 @@
       sectionCard('🏷️ 지목 분포', '카테고리별 필지·면적·비율', categoryTable(agg.byCategory, agg.total.m2)),
       sectionCard('👥 소유자 분포', '소유자별 필지·면적·비율', ownerTable(agg.byOwner, agg.total.m2)),
       sectionCard('📐 산림 분석 (SHP 자체 계산)',
-        '서버에 적재된 임상도·산지구분도와 교집합 실측',
+        '서버에 적재된 임상도·산림입지·임지생산능력과 교집합 실측',
         forestApiSection()),
+      sectionCard('⛰️ 경사도 분포 (래스터 zonal stats)',
+        '10m 해상도 GeoTIFF 와 교차 — 개발 가능 면적의 정량 근거',
+        slopeSection()),
       sectionCard('🥾 주변 등산 인프라',
         '반경 3km 내 산림청 등록 등산로 지점 (이정표·정상·갈림길·대피소 등)',
         poiSection()),
@@ -452,6 +523,9 @@
     }
     if (hasPoi && !_nearbyPoiResult) {
       _nearbyPoiResult = await fetchNearbyPoi(3000);
+    }
+    if (_forestStatus?.slope_raster_ready && !_slopeResult) {
+      _slopeResult = await fetchSlope();
     }
     // 재렌더 (데이터 도착 후)
     body.innerHTML = render();

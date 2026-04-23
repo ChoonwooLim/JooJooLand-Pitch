@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     project_bbox: str = "127.50,37.30,127.85,37.60"  # 양평 기본값
     project_name: str = "JooJooLand"
 
+    # 경사도 래스터 (GeoTIFF) 파일 경로 — 파셀별 zonal stats 계산용
+    slope_raster_path: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
