@@ -267,8 +267,15 @@ const ADJ_LAYER_CONFIG = {
   military: { label: '군유지',         color: '#d84315', matchAny: null, note: 'ownership' },
 };
 
+// 지목 코드 (KLIS 표준, 28종). VWorld WFS 가 코드 필드를 돌려주면 이걸로 매칭
+const JIMOK_CODE_ROAD = new Set(['14', '도']);
+
+// 인접도 판정 기준 (미터). 공유 경계 꼭짓점은 보통 0~1m, 여유로 15m
+const ADJACENCY_MAX_METERS = 15;
+
 const adjacentLayerGroups = {}; // type -> L.LayerGroup
 let _adjBBoxCached = null;
+let _targetVertexSetsCache = null;
 
 function getTargetBBoxString() {
   if (_adjBBoxCached) return _adjBBoxCached;
@@ -335,11 +342,174 @@ async function fetchLandCharacteristics(pnu, key) {
   }
 }
 
+// GeoJSON Feature 의 모든 외곽 꼭짓점을 L.LatLng 배열로
+function featureVertices(feature) {
+  const out = [];
+  const g = feature && feature.geometry;
+  if (!g) return out;
+  const rings = g.type === 'Polygon' ? g.coordinates
+              : g.type === 'MultiPolygon' ? g.coordinates.flat(1)
+              : [];
+  for (const ring of rings) {
+    for (const c of ring) {
+      out.push(L.latLng(c[1], c[0]));
+    }
+  }
+  return out;
+}
+
+function getTargetVertexSets() {
+  if (_targetVertexSetsCache) return _targetVertexSetsCache;
+  const sets = [];
+  Object.values(polygonsById).forEach(({polygon}) => {
+    const f = polygon && polygon.feature;
+    if (!f) return;
+    const verts = featureVertices(f);
+    if (verts.length === 0) return;
+    sets.push({ verts, bounds: L.latLngBounds(verts) });
+  });
+  _targetVertexSetsCache = sets;
+  return sets;
+}
+
+// 후보 필지가 대상 필지들과 인접(공유 경계 또는 ≤maxMeters) 인지.
+// bbox 사전 필터로 대부분 후보를 빠르게 걸러 낸 뒤에만 꼭짓점 거리 계산.
+function isAdjacentToTargets(candidateFeature, maxMeters = ADJACENCY_MAX_METERS) {
+  const candVerts = featureVertices(candidateFeature);
+  if (candVerts.length === 0) return false;
+  const candBounds = L.latLngBounds(candVerts);
+  const bufDeg = maxMeters / 111000; // 위경도 근사 — 빠른 사전 체크용
+  const targetSets = getTargetVertexSets();
+  for (const { verts, bounds } of targetSets) {
+    const expanded = L.latLngBounds(
+      [bounds.getSouth() - bufDeg, bounds.getWest() - bufDeg],
+      [bounds.getNorth() + bufDeg, bounds.getEast() + bufDeg]
+    );
+    if (!expanded.intersects(candBounds)) continue;
+    for (let i = 0; i < candVerts.length; i++) {
+      for (let j = 0; j < verts.length; j++) {
+        if (candVerts[i].distanceTo(verts[j]) <= maxMeters) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// WFS 속성만으로 '도로' 여부 판정 시도 (API 추가 호출 없이).
+// VWorld 버전·레이어에 따라 jibun 에 지목 suffix 가 붙는 경우와 숫자만 오는 경우가 있어
+// 후보 필드를 여러 개 체크한다.
+function detectRoadFromProps(props) {
+  if (!props) return false;
+  const jibun = String(props.jibun || '');
+  // "3도" "484-1도" 같이 한글 suffix 로 끝나면 '도' 만 허용 (도로/도시는 지목 아님)
+  const suffixMatch = jibun.match(/([가-힣]+)$/);
+  if (suffixMatch) {
+    const suf = suffixMatch[1];
+    if (suf === '도' || suf === '도로') return true;
+  }
+  // 지목 코드 필드 (VWorld 레이어마다 이름 상이)
+  const codeLike = String(
+    props.jimok || props.JIMOK ||
+    props.gosamjijok || props.GOSAMJIJOK ||
+    props.jimokCd || props.jimok_cd ||
+    props.jimok_nm || props.jimokNm || ''
+  );
+  if (!codeLike) return false;
+  if (JIMOK_CODE_ROAD.has(codeLike)) return true;
+  if (codeLike === '도로') return true;
+  return false;
+}
+
+async function loadRoadAdjacentByCadastral(key, cfg) {
+  const bbox = getTargetBBoxString();
+  if (!bbox) { alert('필지 로드 완료 후 다시 시도해주세요'); return; }
+  updateProgress(0, 1, `${cfg.label}: BBOX 필지 수집 중...`);
+  const parcels = await loadBBoxParcels(bbox, key);
+
+  const targetPnus = new Set();
+  Object.values(polygonsById).forEach(({polygon}) => {
+    const f = polygon && polygon.feature;
+    if (f && f.properties && f.properties.pnu) targetPnus.add(f.properties.pnu);
+  });
+
+  updateProgress(0, 1, `${cfg.label}: 인접도 계산 중... (${parcels.length}필지)`);
+
+  // 1) 대상 제외 + 인접성 필터 (빠름, 로컬 계산)
+  const adjacentCandidates = parcels.filter(f => {
+    if (!f.properties || !f.properties.pnu) return false;
+    if (targetPnus.has(f.properties.pnu)) return false;
+    return isAdjacentToTargets(f);
+  });
+  console.info(`[road-adj] BBOX ${parcels.length} → 인접 ${adjacentCandidates.length}건`);
+
+  // 2) 속성 기반 '도' 매칭 먼저 시도 (API 호출 0회)
+  const propMatched = adjacentCandidates.filter(f => detectRoadFromProps(f.properties));
+  console.info(`[road-adj] 속성 기반 매칭 ${propMatched.length}건`);
+
+  let matched = propMatched;
+
+  // 3) 속성만으로 매칭 실패 → 인접 후보에 한해서만 NED API 조회
+  //    (기존 로직은 BBOX 전체를 조회해 레이트리밋 에러 발생 → 지금은 수십건 이하)
+  if (matched.length === 0 && adjacentCandidates.length > 0) {
+    console.info('[road-adj] 속성 매칭 0건 → 인접 후보만 NED 조회로 폴백');
+    const concurrency = 4;
+    const q = [...adjacentCandidates];
+    let done = 0;
+    const fallbackMatched = [];
+    async function worker() {
+      while (q.length) {
+        const f = q.shift();
+        if (!f) break;
+        const pnu = f.properties.pnu;
+        const info = await fetchLandCharacteristics(pnu, key);
+        const name = info?.ladUseSittnNm || '';
+        if (name && cfg.matchAny.some(kw => name.includes(kw))) {
+          f.properties._ladUseSittnNm = name;
+          fallbackMatched.push(f);
+        }
+        done++;
+        if (done % 5 === 0 || done === adjacentCandidates.length) {
+          updateProgress(done, adjacentCandidates.length,
+            `${cfg.label}: NED 폴백 ${done}/${adjacentCandidates.length} (매칭 ${fallbackMatched.length})`);
+        }
+      }
+    }
+    await Promise.all(Array.from({length: concurrency}, worker));
+    matched = fallbackMatched;
+  }
+
+  if (matched.length === 0) {
+    // 진단: 첫 3건의 속성 키를 콘솔에 남겨 필드명 확인 용이
+    if (parcels.length > 0) {
+      console.info('[road-adj] 진단용 BBOX 샘플 속성:', parcels.slice(0, 3).map(f => f.properties));
+    }
+    updateProgress(1, 1, `${cfg.label}: 인접 도로 없음`);
+    alert(`${cfg.label}: 인접 ${adjacentCandidates.length}필지 중 "도" 지번 매칭 0건.\n` +
+          `속성 필드 확인이 필요하면 DevTools 콘솔에 샘플이 출력되어 있습니다.`);
+    return;
+  }
+
+  renderAdjacentLayer('road', matched, cfg);
+  updateProgress(1, 1, `${cfg.label}: 인접 ${matched.length}건 표시`);
+}
+
 async function loadAdjacentLayer(type, key) {
   const cfg = ADJ_LAYER_CONFIG[type];
   if (!cfg) return;
   const bbox = getTargetBBoxString();
   if (!bbox) { alert('필지 로드 완료 후 다시 시도해주세요'); return; }
+
+  // 임시 (2026-04-23): 도로는 BBOX 전체 NED 조회가 레이트리밋 에러를 유발 →
+  // 지적도 jibun suffix 파싱 + 인접도(꼭짓점 거리 ≤15m) 기반으로 빠르게 식별.
+  // 원래 경로는 NED getLandCharacteristics 복구 후 되돌릴 것.
+  if (type === 'road') {
+    try { await loadRoadAdjacentByCadastral(key, cfg); }
+    catch (e) {
+      console.error('[adjacent] 도로 로드 실패:', e);
+      alert(`${cfg.label} 로드 실패: ${e.message}`);
+    }
+    return;
+  }
 
   if (!cfg.matchAny) {
     alert(
