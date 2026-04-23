@@ -123,6 +123,9 @@ window.CesiumApp = (function () {
       Object.values(collected).map(({ parcel, feature }) => addParcel(parcel, feature))
     );
 
+    // 2D 에서 이미 켜져있던 인접 레이어들 drained 렌더
+    flushPendingAdjLayers();
+
     // 카메라: 필지 엔티티 묶음에 맞춰 Cesium 이 자동으로 거리 계산
     const tops = allParcelGroups.map(g => g.top).filter(Boolean);
     if (tops.length > 0) {
@@ -185,6 +188,83 @@ window.CesiumApp = (function () {
     labelsVisible = !!on;
     labelEntities.forEach(e => { e.show = labelsVisible; });
     if (viewer) viewer.scene.requestRender();
+  }
+
+  // ========== 인접 레이어 (도로·구거·하천 등) 3D 렌더링 ==========
+  // 2D Leaflet 에서 쓰던 GeoJSON 을 받아 Cesium 에서 지형에 드레이프되는
+  // classification 폴리곤으로 그린다.
+  // 2D 호출 순서가 init() 보다 앞설 수 있으므로 pending 큐로 지연 렌더.
+  const adjEntities = {};                // type -> [Cesium.Entity ...]
+  const adjPending = {};                  // type -> { features, cfg } (viewer 없을 때 저장)
+
+  function materialFor(cfg) {
+    const baseColor = Cesium.Color.fromCssColorString(cfg.color || '#888888');
+    const alpha = typeof cfg.fillOpacity === 'number' ? cfg.fillOpacity : 0.4;
+    return { baseColor, fillColor: baseColor.withAlpha(alpha) };
+  }
+
+  function renderAdjFeatures(type, features, cfg) {
+    const { baseColor, fillColor } = materialFor(cfg);
+    const list = [];
+    features.forEach(f => {
+      const polygons = normalizePolygons(f.geometry);
+      polygons.forEach(ring => {
+        if (!ring || ring.length < 3) return;
+        const positions = Cesium.Cartesian3.fromDegreesArray(
+          ring.flatMap(([lng, lat]) => [lng, lat])
+        );
+        const entity = viewer.entities.add({
+          polygon: {
+            hierarchy: new Cesium.PolygonHierarchy(positions),
+            material: fillColor,
+            classificationType: Cesium.ClassificationType.TERRAIN,
+          },
+        });
+        entity._adjType = type;
+        list.push(entity);
+      });
+    });
+    adjEntities[type] = list;
+    viewer.scene.requestRender();
+  }
+
+  function setAdjacentLayer(type, features, cfg) {
+    clearAdjacentLayer(type);
+    if (!features || features.length === 0) return;
+    if (!viewer) {
+      adjPending[type] = { features, cfg };
+      return;
+    }
+    renderAdjFeatures(type, features, cfg);
+  }
+
+  function clearAdjacentLayer(type) {
+    delete adjPending[type];
+    const list = adjEntities[type];
+    if (!list) return;
+    if (viewer) {
+      list.forEach(e => viewer.entities.remove(e));
+      viewer.scene.requestRender();
+    }
+    delete adjEntities[type];
+  }
+
+  function restyleAdjacentLayer(type, cfg) {
+    if (adjPending[type]) adjPending[type].cfg = cfg;
+    const list = adjEntities[type];
+    if (!list || !viewer) return;
+    const { fillColor } = materialFor(cfg);
+    list.forEach(e => {
+      if (e.polygon) e.polygon.material = fillColor;
+    });
+    viewer.scene.requestRender();
+  }
+
+  function flushPendingAdjLayers() {
+    Object.entries(adjPending).forEach(([type, { features, cfg }]) => {
+      if (features && features.length > 0) renderAdjFeatures(type, features, cfg);
+    });
+    Object.keys(adjPending).forEach(k => delete adjPending[k]);
   }
 
   function topPositionsFor(ringCoords, terrainHeights, extraHeight) {
@@ -491,5 +571,10 @@ window.CesiumApp = (function () {
     if (window.LeafletMap) window.LeafletMap.invalidateSize();
   }
 
-  return { register, show, hide, toggleGoogle3D, toggleOsmBuildings, toggleLabels, flyToAddress, applyStyle, getStyle };
+  return {
+    register, show, hide,
+    toggleGoogle3D, toggleOsmBuildings, toggleLabels, flyToAddress,
+    applyStyle, getStyle,
+    setAdjacentLayer, clearAdjacentLayer, restyleAdjacentLayer,
+  };
 })();

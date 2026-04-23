@@ -731,6 +731,9 @@ function styleForAdjLayer(type) {
   };
 }
 
+// 각 type 별 가장 최근 features 보관 — 스타일 재계산·3D 재적용 용
+const adjacentFeaturesByType = {};
+
 function renderAdjacentLayer(type, features, cfg) {
   const group = L.layerGroup();
   const style = styleForAdjLayer(type);
@@ -752,18 +755,28 @@ function renderAdjacentLayer(type, features, cfg) {
     if (label) label.setZIndexOffset(1000);
   });
   adjacentLayerGroups[type] = group;
+  adjacentFeaturesByType[type] = features;
   updateLegendAdjVisibility();
+  // 3D 동기화 — Cesium 이 아직 초기화 전이어도 pending 큐에 들어감
+  if (window.CesiumApp?.setAdjacentLayer) {
+    window.CesiumApp.setAdjacentLayer(type, features, ADJ_LAYER_CONFIG[type]);
+  }
 }
 
 // 이미 그려진 그룹의 모든 하위 레이어에 스타일 재적용
 function reapplyAdjLayerStyle(type) {
   const group = adjacentLayerGroups[type];
-  if (!group) return;
   const style = styleForAdjLayer(type);
-  group.eachLayer(sub => {
-    if (typeof sub.setStyle === 'function') sub.setStyle(style);
-    else if (sub.eachLayer) sub.eachLayer(inner => inner.setStyle && inner.setStyle(style));
-  });
+  if (group) {
+    group.eachLayer(sub => {
+      if (typeof sub.setStyle === 'function') sub.setStyle(style);
+      else if (sub.eachLayer) sub.eachLayer(inner => inner.setStyle && inner.setStyle(style));
+    });
+  }
+  // 3D 도 동시에 갱신
+  if (window.CesiumApp?.restyleAdjacentLayer) {
+    window.CesiumApp.restyleAdjacentLayer(type, ADJ_LAYER_CONFIG[type]);
+  }
 }
 
 // 사이드바 swatch + 범례 swatch 를 현재 색상으로 동기화
@@ -817,7 +830,11 @@ function removeAdjacentLayer(type) {
     map.removeLayer(g);
     delete adjacentLayerGroups[type];
   }
+  delete adjacentFeaturesByType[type];
   updateLegendAdjVisibility();
+  if (window.CesiumApp?.clearAdjacentLayer) {
+    window.CesiumApp.clearAdjacentLayer(type);
+  }
 }
 
 function setupAdjacentLayers(key) {
