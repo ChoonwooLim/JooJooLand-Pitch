@@ -112,232 +112,301 @@ header h1 .project-suffix {
 }
 
 /* ==================== 토지 상세 정보 모달 ==================== */
+/* ========== 토지정보 모달 — 라이트 테마 + 풀폭 ========== */
+/* 자체 라이트 팔레트를 모달 스코프에 CSS 변수로 깔아 상위 다크 테마와 격리 */
 .landinfo-modal-content {
-  max-width: 1200px;
-  width: 95%;
-  max-height: 92vh;
+  --li-bg:         #ffffff;
+  --li-bg-soft:    #f8f9fa;
+  --li-bg-head:    #eef5f1;       /* 섹션 헤더 */
+  --li-bg-stat:    #f1f3f5;       /* stat 카드 */
+  --li-text:       #1f2328;       /* primary */
+  --li-text-2:     #424a53;       /* secondary */
+  --li-text-dim:   #6c757d;
+  --li-border:     #e0e4e8;
+  --li-border-2:   #c4cdd4;
+  --li-accent:     #128a5e;       /* 짙은 녹색 (흰 배경 가독성) */
+  --li-accent-bg:  #e6f5ee;
+  --li-warn-bg:    #fff8e1;
+  --li-warn-br:    #ffd666;
+  --li-warn-text:  #946200;
+
+  max-width: 98vw;
+  width: 98vw;
+  max-height: 96vh;
   display: flex;
   flex-direction: column;
-  padding: 20px 24px;
-  background-image:
-    linear-gradient(180deg, rgba(6,12,9,0.94) 0%, rgba(4,10,7,0.98) 100%);
+  padding: 20px 28px;
+  background: var(--li-bg) !important;
+  background-image: none !important;
+  color: var(--li-text);
+  border: 1px solid var(--li-border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
+/* 모달 공통 editor-header 의 어두운 색 오버라이드 */
+.landinfo-modal-content .editor-header {
+  border-bottom-color: var(--li-border);
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+}
+.landinfo-modal-content .editor-header h2 {
+  color: var(--li-accent);
+  font-weight: 700;
+}
+.landinfo-modal-content .editor-close-btn {
+  color: var(--li-text-2);
+}
+.landinfo-modal-content .editor-close-btn:hover {
+  background: var(--li-bg-soft);
+  color: var(--li-text);
+}
+
 .landinfo-body {
   overflow-y: auto;
-  padding-right: 8px;
+  padding-right: 10px;
   flex: 1;
+  color: var(--li-text);
 }
+.landinfo-body::-webkit-scrollbar { width: 10px; }
+.landinfo-body::-webkit-scrollbar-thumb {
+  background: var(--li-border-2);
+  border-radius: 5px;
+}
+
 .linfo-section {
-  margin-bottom: 20px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  margin-bottom: 18px;
+  background: var(--li-bg);
+  border: 1px solid var(--li-border);
+  border-radius: 10px;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .linfo-section-head {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-soft);
-  background: rgba(76, 201, 158, 0.06);
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--li-border);
+  background: var(--li-bg-head);
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
 }
 .linfo-section-head h3 {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-primary);
-  font-weight: 600;
+  font-size: 15px;
+  color: var(--li-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 .linfo-section-head small {
-  color: var(--text-dim);
-  font-size: 11px;
+  color: var(--li-text-dim);
+  font-size: 12px;
+  font-weight: 400;
 }
-.linfo-section-body { padding: 14px 16px; }
+.linfo-section-body { padding: 16px 18px; background: var(--li-bg); }
 
 .linfo-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
 }
 .linfo-stat {
-  padding: 10px 12px;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
+  padding: 12px 14px;
+  background: var(--li-bg-stat);
+  border: 1px solid var(--li-border);
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 .linfo-stat.accent {
-  background: linear-gradient(180deg, rgba(76, 201, 158, 0.12), rgba(30, 70, 55, 0.18));
-  border-color: var(--border-medium);
+  background: var(--li-accent-bg);
+  border-color: var(--li-accent);
 }
 .linfo-stat-label {
-  font-size: 11px;
-  color: var(--text-dim);
+  font-size: 12px;
+  color: var(--li-text-dim);
   letter-spacing: 0.02em;
 }
 .linfo-stat-value {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--li-text);
+  line-height: 1.2;
 }
+.linfo-stat.accent .linfo-stat-value { color: var(--li-accent); }
 .linfo-stat-value small {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--li-text-2);
   margin-left: 3px;
 }
 
 .linfo-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
+  color: var(--li-text);
 }
 .linfo-table th,
 .linfo-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border-soft);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--li-border);
   text-align: left;
   vertical-align: middle;
 }
 .linfo-table th {
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: rgba(0,0,0,0.2);
-  font-size: 11px;
+  font-weight: 700;
+  color: var(--li-text-2);
+  background: var(--li-bg-soft);
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 .linfo-table td.num,
 .linfo-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.linfo-table tbody tr:hover { background: rgba(76, 201, 158, 0.06); }
+.linfo-table tbody tr:hover { background: var(--li-bg-soft); }
 
 .linfo-swatch {
   display: inline-block;
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
-  margin-right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 7px;
   vertical-align: middle;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(0,0,0,0.15);
 }
 .linfo-chip {
   display: inline-block;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 10px;
-  background: rgba(76, 201, 158, 0.12);
-  border: 1px solid var(--border-soft);
-  font-size: 10px;
-  color: var(--text-secondary);
+  background: var(--li-accent-bg);
+  border: 1px solid var(--li-accent);
+  font-size: 11px;
+  color: var(--li-accent);
+  font-weight: 600;
   margin-left: 4px;
 }
 .linfo-chip-mtn {
-  background: rgba(233, 30, 99, 0.18);
-  border-color: rgba(233, 30, 99, 0.35);
-  color: #ffb4c8;
+  background: #fde4ec;
+  border-color: #e91e63;
+  color: #c62068;
 }
 .linfo-bar {
   width: 100%;
-  height: 6px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 3px;
+  height: 8px;
+  background: var(--li-bg-soft);
+  border: 1px solid var(--li-border);
+  border-radius: 4px;
   overflow: hidden;
-  min-width: 60px;
+  min-width: 80px;
 }
 .linfo-bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .linfo-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   margin-right: 8px;
-  background: rgba(255,255,255,0.2);
+  background: #cfd4d9;
   vertical-align: middle;
 }
 .linfo-dot.on {
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent-dim);
+  background: var(--li-accent);
+  box-shadow: 0 0 6px rgba(18, 138, 94, 0.5);
 }
 .linfo-hint {
-  color: var(--text-dim);
-  font-size: 12px;
-  margin: 6px 0 0;
-  line-height: 1.5;
+  color: var(--li-text-dim);
+  font-size: 12.5px;
+  margin: 8px 0 0;
+  line-height: 1.55;
 }
 .linfo-notice {
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: rgba(255, 193, 7, 0.06);
-  border: 1px solid rgba(255, 193, 7, 0.25);
-  border-radius: 5px;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--li-warn-bg);
+  border: 1px solid var(--li-warn-br);
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--li-warn-text);
 }
-.linfo-notice b { color: #ffd966; }
+.linfo-notice b { color: #6b4500; }
+.linfo-notice code {
+  background: rgba(0,0,0,0.06);
+  color: #4a2e00;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11.5px;
+}
 
 .linfo-links { display: flex; gap: 6px; flex-wrap: wrap; }
 .linfo-links a {
-  padding: 3px 8px;
-  background: rgba(76, 201, 158, 0.1);
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  color: var(--text-secondary);
+  padding: 4px 10px;
+  background: var(--li-accent-bg);
+  border: 1px solid var(--li-accent);
+  border-radius: 4px;
+  color: var(--li-accent);
   text-decoration: none;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   transition: all 0.15s;
 }
 .linfo-links a:hover {
-  background: var(--accent-dim);
-  color: #eaffef;
-  border-color: var(--border-medium);
+  background: var(--li-accent);
+  color: #ffffff;
 }
 
 .linfo-ext-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
 }
 .linfo-ext-card {
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  color: var(--text-secondary);
+  padding: 14px 16px;
+  background: var(--li-bg-soft);
+  border: 1px solid var(--li-border);
+  border-radius: 8px;
+  color: var(--li-text-2);
   text-decoration: none;
   transition: all 0.15s;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 .linfo-ext-card:hover {
-  background: rgba(76, 201, 158, 0.08);
-  border-color: var(--accent-dim);
+  background: var(--li-accent-bg);
+  border-color: var(--li-accent);
   transform: translateY(-2px);
-  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(18, 138, 94, 0.15);
+  color: var(--li-text);
 }
 .linfo-ext-card strong {
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: 14px;
+  color: var(--li-text);
+  font-weight: 700;
 }
 .linfo-ext-card small {
-  font-size: 11px;
-  color: var(--text-dim);
-  line-height: 1.4;
+  font-size: 12px;
+  color: var(--li-text-dim);
+  line-height: 1.5;
 }
 
 .linfo-scroll-table {
-  max-height: 340px;
+  max-height: 420px;
   overflow-y: auto;
-  border: 1px solid var(--border-soft);
-  border-radius: 5px;
+  border: 1px solid var(--li-border);
+  border-radius: 6px;
 }
+.linfo-scroll-table::-webkit-scrollbar { width: 10px; }
+.linfo-scroll-table::-webkit-scrollbar-thumb { background: var(--li-border-2); border-radius: 5px; }
 
 .linfo-forest-table td { vertical-align: top; }
+
+/* 소제목 h4 (renderProjectSummary 에서 쓰임) */
+.landinfo-modal-content .linfo-subsection h4 {
+  color: var(--li-accent) !important;
+}
 
 .subtitle {
   font-size: 12px;
