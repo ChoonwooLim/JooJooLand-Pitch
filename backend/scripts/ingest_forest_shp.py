@@ -1,24 +1,18 @@
 #!/usr/bin/env python
-"""산림청 SHP → DB 적재 스크립트.
+"""산림청 SHP → DB 적재 스크립트 (단일 레이어).
 
-Usage:
+CLI 사용:
     python -m backend.scripts.ingest_forest_shp \
-        --layer imsang \
-        --file /path/to/imsang.shp \
-        --bbox 127.68,37.42,127.82,37.55 \
-        [--srid-override 5179] \
-        [--truncate]
+        --layer imsang --file /path/to/imsang.shp \
+        --bbox 127.68,37.42,127.82,37.55 [--truncate]
 
-- `--layer`     : 저장할 layer_type 이름 (imsang / sanji / landslide / soil)
-- `--file`      : SHP 파일 경로 (.shp. .shx/.dbf/.prj 동일 디렉토리 필수)
-- `--bbox`      : lngMin,latMin,lngMax,latMax (EPSG:4326). 이 범위만 잘라 DB 에 넣음
-- `--srid-override` : SHP .prj 가 깨졌을 때 수동 지정 (기본 자동인식)
-- `--truncate`  : 적재 전 같은 layer_type 기존 행 전부 삭제
+함수 사용:
+    from backend.scripts.ingest_forest_shp import ingest_one_layer
+    ingest_one_layer(layer='imsang', shp_path='...', bbox=(..., ..., ..., ...), truncate=True)
 
-pyogrio 는 GeoPandas 없이 SHP/GPKG 읽는 C 가속 라이브러리. 읽기 한 번에
-필터·투영 변환까지 수행.
+양평 BBOX 예: 127.50,37.30,127.85,37.60
 
-양평 BBOX 예: 127.50,37.30,127.85,37.60 (양동면 포함 여유).
+pyogrio 는 GeoPandas 없이 SHP/GPKG 읽는 C 가속 라이브러리.
 """
 from __future__ import annotations
 
@@ -26,13 +20,13 @@ import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pyogrio
-from shapely.geometry import shape, mapping  # noqa: F401
 from shapely.ops import transform as shp_transform
 from shapely import wkb as shp_wkb
 from pyproj import CRS, Transformer
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, delete
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
@@ -42,40 +36,45 @@ from backend.app.models.forest import ForestFeature, ForestIngestLog  # noqa: E4
 
 WGS84 = CRS.from_epsg(4326)
 
+BBox = tuple[float, float, float, float]  # (lngMin, latMin, lngMax, latMax)
 
-def parse_bbox(s: str) -> tuple[float, float, float, float]:
+
+def parse_bbox(s: str) -> BBox:
     parts = [float(x) for x in s.split(",")]
     if len(parts) != 4:
         raise ValueError("bbox 는 lngMin,latMin,lngMax,latMax 4개")
-    return tuple(parts)  # type: ignore[return-value]
+    return (parts[0], parts[1], parts[2], parts[3])
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--layer", required=True, choices=["imsang", "sanji", "landslide", "soil"])
-    ap.add_argument("--file", required=True)
-    ap.add_argument("--bbox", required=True, help="lngMin,latMin,lngMax,latMax (EPSG:4326)")
-    ap.add_argument("--srid-override", type=int, default=None)
-    ap.add_argument("--truncate", action="store_true")
-    ap.add_argument("--chunk", type=int, default=500)
-    args = ap.parse_args()
+def ingest_one_layer(
+    layer: str,
+    shp_path: str,
+    bbox: BBox,
+    truncate: bool = False,
+    srid_override: Optional[int] = None,
+    chunk: int = 500,
+    verbose: bool = True,
+) -> dict:
+    """단일 SHP → layer 로 DB 적재.
 
-    bbox = parse_bbox(args.bbox)
-    src = Path(args.file)
+    반환: {"status": "ok"|"error", "inserted": N, "skipped": N, "message": ...}
+    """
+    src = Path(shp_path)
     if not src.exists():
-        sys.exit(f"file not found: {src}")
+        return {"status": "error", "inserted": 0, "skipped": 0, "message": f"file not found: {src}"}
+
+    log_fn = print if verbose else (lambda *_a, **_k: None)
 
     # 원본 SHP CRS 파악
     info = pyogrio.read_info(str(src))
-    src_crs = args.srid_override or info.get("crs")
+    src_crs = srid_override or info.get("crs")
     if not src_crs:
-        sys.exit("SHP 의 CRS 를 파악할 수 없음. --srid-override 로 지정 (예: 5179)")
+        return {"status": "error", "inserted": 0, "skipped": 0, "message": "SHP CRS 미상 — srid_override 지정"}
 
     src_crs_obj = CRS.from_user_input(src_crs)
     to_wgs = Transformer.from_crs(src_crs_obj, WGS84, always_xy=True).transform
 
-    # BBOX(EPSG:4326) → 원본 CRS BBOX 로 변환해 pyogrio 에 bbox 필터로 전달
-    # (네 모서리 모두 투영 후 최소/최대 사용)
+    # EPSG:4326 BBOX → 원본 CRS BBOX 로 변환 (네 모서리 투영 후 min/max)
     from_wgs = Transformer.from_crs(WGS84, src_crs_obj, always_xy=True).transform
     xs, ys = zip(*[
         from_wgs(bbox[0], bbox[1]),
@@ -84,38 +83,40 @@ def main():
         from_wgs(bbox[2], bbox[3]),
     ])
     src_bbox = (min(xs), min(ys), max(xs), max(ys))
-    print(f"[read] CRS={src_crs_obj.to_epsg()} src_bbox={src_bbox}")
+    log_fn(f"[read] {src.name} CRS={src_crs_obj.to_epsg()} src_bbox={tuple(round(v,1) for v in src_bbox)}")
 
-    # pyogrio 로 bbox 필터 읽기 (메모리 효율)
-    gdf = pyogrio.read_dataframe(
-        str(src),
-        bbox=src_bbox,
-    )
+    # pyogrio 로 bbox 필터 읽기
+    try:
+        gdf = pyogrio.read_dataframe(str(src), bbox=src_bbox)
+    except Exception as e:
+        return {"status": "error", "inserted": 0, "skipped": 0, "message": f"pyogrio 읽기 실패: {e}"}
+
     if gdf is None or len(gdf) == 0:
-        print("[warn] 매칭 피처 0건.")
-        return
-    print(f"[read] {len(gdf)} features in bbox")
+        log_fn("[warn] 매칭 피처 0건.")
+        return {"status": "ok", "inserted": 0, "skipped": 0, "message": "0 features in bbox"}
+
+    log_fn(f"[read] {len(gdf)} features in bbox")
 
     inserted = 0
     skipped = 0
     now = datetime.utcnow()
 
     with Session(engine) as db:
-        log = ForestIngestLog(
-            layer_type=args.layer,
+        log_row = ForestIngestLog(
+            layer_type=layer,
             source_file=src.name,
             bbox_filter=",".join(f"{v:.5f}" for v in bbox),
             started_at=now,
         )
-        db.add(log); db.commit(); db.refresh(log)
+        db.add(log_row); db.commit(); db.refresh(log_row)
 
-        if args.truncate:
-            db.exec(delete(ForestFeature).where(ForestFeature.layer_type == args.layer))
+        if truncate:
+            db.exec(delete(ForestFeature).where(ForestFeature.layer_type == layer))
             db.commit()
-            print(f"[truncate] layer={args.layer} 삭제")
+            log_fn(f"[truncate] layer={layer} 기존 데이터 삭제")
 
         batch: list[ForestFeature] = []
-        for idx, row in gdf.iterrows():
+        for _idx, row in gdf.iterrows():
             geom = row.geometry
             if geom is None or geom.is_empty:
                 skipped += 1
@@ -129,12 +130,11 @@ def main():
                 continue
 
             # 속성 (geometry 제외)
-            attrs = {}
+            attrs: dict = {}
             for col in gdf.columns:
                 if col == "geometry":
                     continue
                 v = row[col]
-                # numpy scalar 등 JSON 직렬화 가능한 타입으로 변환
                 try:
                     if hasattr(v, "item"):
                         v = v.item()
@@ -145,33 +145,56 @@ def main():
                 attrs[str(col)] = v
 
             feat = ForestFeature(
-                layer_type=args.layer,
+                layer_type=layer,
                 source_file=src.name,
                 min_lng=minx, max_lng=maxx,
                 min_lat=miny, max_lat=maxy,
                 attrs=attrs,
                 geom_wkb=shp_wkb.dumps(geom_wgs, output_dimension=2),
-                area_m2=0.0,  # 계산 비용 절감: 필요시 API 시점에 계산
+                area_m2=0.0,
                 ingested_at=now,
             )
             batch.append(feat)
-            if len(batch) >= args.chunk:
+            if len(batch) >= chunk:
                 db.add_all(batch); db.commit()
                 inserted += len(batch)
-                print(f"  [ingest] +{len(batch)} (total {inserted})")
+                log_fn(f"  [ingest] +{len(batch)} (total {inserted})")
                 batch = []
 
         if batch:
             db.add_all(batch); db.commit()
             inserted += len(batch)
 
-        log.inserted_count = inserted
-        log.skipped_count = skipped
-        log.status = "ok"
-        log.finished_at = datetime.utcnow()
-        db.add(log); db.commit()
+        log_row.inserted_count = inserted
+        log_row.skipped_count = skipped
+        log_row.status = "ok"
+        log_row.finished_at = datetime.utcnow()
+        db.add(log_row); db.commit()
 
-    print(f"[done] layer={args.layer} inserted={inserted} skipped={skipped}")
+    log_fn(f"[done] layer={layer} inserted={inserted} skipped={skipped}")
+    return {"status": "ok", "inserted": inserted, "skipped": skipped, "message": f"from {src.name}"}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--layer", required=True, choices=["imsang", "sanji", "landslide", "soil"])
+    ap.add_argument("--file", required=True)
+    ap.add_argument("--bbox", required=True, help="lngMin,latMin,lngMax,latMax (EPSG:4326)")
+    ap.add_argument("--srid-override", type=int, default=None)
+    ap.add_argument("--truncate", action="store_true")
+    ap.add_argument("--chunk", type=int, default=500)
+    args = ap.parse_args()
+
+    result = ingest_one_layer(
+        layer=args.layer,
+        shp_path=args.file,
+        bbox=parse_bbox(args.bbox),
+        truncate=args.truncate,
+        srid_override=args.srid_override,
+        chunk=args.chunk,
+    )
+    if result["status"] == "error":
+        sys.exit(result["message"])
 
 
 if __name__ == "__main__":

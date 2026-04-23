@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     vworld_registered_domain: str = "joojooland.twinverse.org"
     cesium_ion_token: str = ""
 
+    # === 산림청 SHP 적재 설정 ===
+    # 전국 SHP 원본이 풀려 있는 디렉토리 (Orbitron/로컬 공통 경로로 맞추기 권장).
+    # 비워두면 CLI --file 인자로 직접 지정해야 함.
+    forest_shp_dir: str = ""
+    # 프로젝트 BBOX (lngMin,latMin,lngMax,latMax, EPSG:4326).
+    # 이 범위로 SHP 를 잘라 DB 에 주입. 프로젝트마다 다르게 지정.
+    project_bbox: str = "127.50,37.30,127.85,37.60"  # 양평 기본값
+    project_name: str = "JooJooLand"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
