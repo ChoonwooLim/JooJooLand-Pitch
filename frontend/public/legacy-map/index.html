@@ -111,6 +111,13 @@
         <button id="mode-2d" class="mode-btn active">2D</button>
         <button id="mode-3d" class="mode-btn">3D</button>
       </div>
+      <div class="basemap-toggle" title="베이스 지도 전환">
+        <button class="basemap-btn active" data-basemap="satellite" title="VWorld 위성 + 지번 라벨">🛰️ 위성</button>
+        <button class="basemap-btn" data-basemap="esri" title="Esri World Imagery (고해상도)">🌍 Esri</button>
+        <button class="basemap-btn" data-basemap="base" title="VWorld 일반지도">🗺️ 일반</button>
+        <button class="basemap-btn" data-basemap="terrain" title="Esri World Topo (지형)">⛰️ 지형</button>
+        <button class="basemap-btn" data-basemap="osm" title="OpenStreetMap">📍 OSM</button>
+      </div>
       <div class="progress" id="progress">
         <span id="progress-text">대기 중...</span>
         <div class="progress-bar"><div id="progress-bar-fill"></div></div>
@@ -135,14 +142,9 @@
           <div id="filter-owners"></div>
         </div>
         <div class="filter-group">
-          <strong>베이스 지도</strong>
-          <label><input type="radio" name="basemap" value="satellite" checked /> 위성</label>
-          <label><input type="radio" name="basemap" value="base" /> 일반</label>
-          <label><input type="radio" name="basemap" value="osm" /> OSM</label>
-        </div>
-        <div class="filter-group">
           <label><input type="checkbox" id="toggle-cadastral" checked /> 지적편집도 표시</label>
           <label><input type="checkbox" id="toggle-labels" checked /> 지번 라벨</label>
+          <p class="hint">베이스 지도는 상단 버튼으로 전환.</p>
         </div>
         <div class="filter-group" id="group-gis-tabs">
           <strong>GIS 오버레이</strong>
@@ -152,6 +154,7 @@
             <button class="tab-button" data-tab="terrain" role="tab" title="경사·생태·환경평가">⛰ 환경</button>
             <button class="tab-button" data-tab="regulation" role="tab" title="개발제한·군사·문화재·수자원">🚧 규제</button>
             <button class="tab-button" data-tab="transport" role="tab" title="도로·철도">🛣 교통</button>
+            <button class="tab-button" data-tab="forest" role="tab" title="산림청·임업진흥원 임상·토양·산지구분">🌲 산림</button>
           </div>
 
           <div class="tab-panel active" id="tab-site" role="tabpanel">
@@ -209,6 +212,27 @@
           <div class="tab-panel" id="tab-transport" role="tabpanel">
             <label><input type="checkbox" class="wms-toggle" value="road-net" /> 도로망 <small class="beta-tag">(β)</small></label>
             <label><input type="checkbox" class="wms-toggle" value="rail-net" /> 철도망 <small class="beta-tag">(β)</small></label>
+          </div>
+
+          <div class="tab-panel" id="tab-forest" role="tabpanel">
+            <label><input type="checkbox" class="wms-toggle" value="forest-stand" /> 임상도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="forest-soil" /> 산림입지토양도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="forest-class" /> 산지구분도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="landslide" /> 산사태위험지도 <small class="beta-tag">(β)</small></label>
+            <label><input type="checkbox" class="wms-toggle" value="eco-nature" /> 자연환경보전지역 <small class="beta-tag">(β)</small></label>
+            <div class="forest-ext-links">
+              <strong>🔗 외부 공식 조회</strong>
+              <a class="ext-link" href="https://gis.kofpi.or.kr/" target="_blank" rel="noopener">
+                🌲 임업정보 다드림 <small>(필지 통합 · 경사·임상·토양·산사태)</small>
+              </a>
+              <a class="ext-link" href="https://map.forest.go.kr/" target="_blank" rel="noopener">
+                🗺️ 산림공간정보서비스 FGIS <small>(임상도·임도망·맞춤형 조림)</small>
+              </a>
+              <a class="ext-link" href="http://www.forestland.go.kr/" target="_blank" rel="noopener">
+                ⛰️ 산지정보시스템 <small>(보전/준보전·전용제한 판정)</small>
+              </a>
+              <p class="hint">β 레이어는 VWorld 에서 응답이 없을 수 있습니다. 그럴 땐 위 링크로 조회하세요.</p>
+            </div>
           </div>
         </div>
         <div class="filter-group" id="group-3d-only">

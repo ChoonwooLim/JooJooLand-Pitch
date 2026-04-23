@@ -116,9 +116,27 @@ function startMap(key) {
     maxZoom: 19, attribution: '© OpenStreetMap'
   });
 
+  // Esri World Imagery — 고해상도 위성 (API 키 불필요, 무료)
+  const esriImagery = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: '© Esri World Imagery' }
+  );
+  // Esri 하이브리드용 라벨 (VWorld Hybrid 재인스턴스 — 그룹 간 공유 금지)
+  const satelliteHybridForEsri = L.tileLayer(
+    `https://api.vworld.kr/req/wmts/1.0.0/${key}/Hybrid/{z}/{y}/{x}.png`,
+    { maxZoom: 19 }
+  );
+  // Esri World Topo — 지형 + 행정경계
+  const esriTopo = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: '© Esri World Topo' }
+  );
+
   baseLayers.satellite = L.layerGroup([satellite, satelliteHybrid]);
   baseLayers.base = base;
   baseLayers.osm = osm;
+  baseLayers.esri = L.layerGroup([esriImagery, satelliteHybridForEsri]);
+  baseLayers.terrain = esriTopo;
 
   baseLayers.satellite.addTo(map);
   currentBaseLayer = baseLayers.satellite;
@@ -136,17 +154,23 @@ function startMap(key) {
   );
   cadastralLayer.addTo(map);
 
-  // 베이스맵 전환
-  document.querySelectorAll('input[name="basemap"]').forEach(el => {
-    el.addEventListener('change', (e) => {
-      if (currentBaseLayer) map.removeLayer(currentBaseLayer);
-      currentBaseLayer = baseLayers[e.target.value];
-      currentBaseLayer.addTo(map);
-      if (cadastralLayer && map.hasLayer(cadastralLayer)) {
-        cadastralLayer.bringToFront();
-      }
-      Object.values(polygonsById).forEach(({polygon}) => polygon.bringToFront());
+  // 베이스맵 전환 (헤더 버튼)
+  const switchBasemap = (name) => {
+    const next = baseLayers[name];
+    if (!next || next === currentBaseLayer) return;
+    if (currentBaseLayer) map.removeLayer(currentBaseLayer);
+    currentBaseLayer = next;
+    currentBaseLayer.addTo(map);
+    if (cadastralLayer && map.hasLayer(cadastralLayer)) cadastralLayer.bringToFront();
+    Object.values(polygonsById).forEach(({polygon}) => polygon.bringToFront());
+    // WMS 오버레이도 최상단 유지
+    Object.values(wmsLayers).forEach(tl => { if (map.hasLayer(tl)) tl.bringToFront(); });
+    document.querySelectorAll('.basemap-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.basemap === name);
     });
+  };
+  document.querySelectorAll('.basemap-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchBasemap(btn.dataset.basemap));
   });
 
   document.getElementById('toggle-cadastral').addEventListener('change', (e) => {
@@ -199,6 +223,13 @@ const WMS_LAYER_CONFIG = {
   // 🛣 교통
   'road-net': { layer: 'lt_l_moctlink', label: '도로망' },
   'rail-net': { layer: 'lt_l_rwrlline', label: '철도망' },
+  // 🌲 산림 — VWorld 카탈로그에 존재하는 산림청 관련 레이어 후보
+  //  (타일 미응답이면 tileerror 핸들러가 콘솔 경고. 외부 링크로 대체 조회 가능)
+  'forest-stand': { layer: 'lt_c_forest',    label: '임상도' },
+  'forest-soil':  { layer: 'lt_c_umsatang',  label: '산림입지토양도' },
+  'forest-class': { layer: 'lt_c_umhilmos',  label: '산지구분도' },
+  'landslide':    { layer: 'lt_c_axisalko',  label: '산사태위험지도' },
+  'eco-nature':   { layer: 'lt_c_uu401',     label: '자연환경보전지역' },
 };
 
 // ==================== 2D (Leaflet) 필지 스타일 ====================
