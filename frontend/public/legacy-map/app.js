@@ -193,10 +193,11 @@ function startMap(key) {
   // 인접 부지 오버레이 체크박스 리스너는 즉시 부착 (필지 로드와 독립)
   setupAdjacentLayers(key);
 
-  // GIS 오버레이 탭 + WMS 토글 + 2D 필지 스타일 컨트롤
+  // GIS 오버레이 탭 + WMS 토글 + 2D 필지 스타일 컨트롤 + POI 토글
   setupGisTabs();
   setupWMSLayers();
   setupLeafletParcelStyleControls();
+  setupMountainPoiToggle();
 
   // 필지 로드
   loadAllParcels(key);
@@ -358,6 +359,85 @@ function setupLeafletParcelStyleControls() {
       }
     });
   }
+}
+
+// ==================== Mountain POI 지도 오버레이 ====================
+let _mountainPoiLayerGroup = null;
+let _mountainPoiCache = null;
+
+const POI_CATEGORY_COLOR = {
+  '이정표':'#ffd54f','안내판':'#81c784','갈림길':'#ffb74d',
+  '정상':'#e57373','봉우리':'#ba68c8','화장실':'#4fc3f7',
+  '쉼터':'#aed581','주차장':'#90caf9','야영지':'#a5d6a7',
+  '전망대':'#ff8a65','대피소':'#f06292','수원':'#4dd0e1',
+  '약수':'#64b5f6','능선지점':'#dce775','기타':'#b0bec5',
+};
+
+async function loadMountainPoi() {
+  if (_mountainPoiCache) return _mountainPoiCache;
+  const items = [];
+  Object.values(polygonsById).forEach(entry => {
+    const f = entry?.polygon?.feature;
+    if (f && f.geometry) items.push(f.geometry);
+  });
+  if (items.length === 0) return null;
+  try {
+    const r = await fetch('/api/forest/nearby-poi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcels: items, radius_m: 5000, limit: 2000 }),
+    });
+    if (!r.ok) return null;
+    _mountainPoiCache = await r.json();
+    return _mountainPoiCache;
+  } catch { return null; }
+}
+
+function renderMountainPoi(data) {
+  if (!data || !data.points) return;
+  _mountainPoiLayerGroup = L.layerGroup();
+  data.points.forEach(p => {
+    const color = POI_CATEGORY_COLOR[p.category] || '#b0bec5';
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 5,
+      color: '#222',
+      weight: 1,
+      fillColor: color,
+      fillOpacity: 0.85,
+    });
+    marker.bindPopup(
+      `<div class="popup-title">🥾 ${p.name || '등산 지점'}</div>` +
+      `<div class="popup-row"><strong>분류</strong><span>${p.category}</span></div>` +
+      `<div class="popup-row"><strong>상세</strong><span>${p.detail || '-'}</span></div>` +
+      `<div class="popup-row"><strong>거리</strong><span>${Math.round(p.distance_m)}m</span></div>`
+    );
+    marker.addTo(_mountainPoiLayerGroup);
+  });
+  _mountainPoiLayerGroup.addTo(map);
+}
+
+function setupMountainPoiToggle() {
+  const cb = document.getElementById('toggle-mountain-poi');
+  if (!cb) return;
+  cb.addEventListener('change', async () => {
+    if (cb.checked) {
+      cb.disabled = true;
+      try {
+        const data = await loadMountainPoi();
+        if (!data || !data.total) {
+          alert('주변 POI 데이터가 없습니다. (산림청 등산로 포인트 적재 필요)');
+          cb.checked = false;
+          return;
+        }
+        renderMountainPoi(data);
+      } finally {
+        cb.disabled = false;
+      }
+    } else if (_mountainPoiLayerGroup) {
+      map.removeLayer(_mountainPoiLayerGroup);
+      _mountainPoiLayerGroup = null;
+    }
+  });
 }
 
 function setupGisTabs() {

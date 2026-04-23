@@ -4,10 +4,11 @@ PostGIS 없이 shapely 로 Python 측 처리 — geometry 는 WKB(bytes) 로 저
 bbox 4 개 컬럼으로 1 차 필터, 그 뒤 shapely 로 실제 교집합 계산.
 
 레이어 종류 (layer_type):
-- 'imsang'   : 임상도 (임종/임상/수종/경급/영급/수관밀도)
-- 'sanji'    : 산지구분도 (보전/준보전/임업용/공익용)
-- 'landslide': 산사태위험지도 (등급)
-- 'soil'     : 산림입지토양도
+- 'imsang'      : 임상도 (임종/임상/수종/경급/영급/수관밀도) — Polygon
+- 'sanji'       : 산지구분도 (보전/준보전/임업용/공익용) — Polygon
+- 'landslide'   : 산사태위험지도 (등급) — Polygon
+- 'soil'        : 산림입지토양도 — Polygon
+- 'mountain_poi': 등산로 시설·포인트(이정표·갈림길·정상·화장실 등) — Point
 """
 from __future__ import annotations
 
@@ -15,7 +16,6 @@ from typing import Optional, Any
 from datetime import datetime
 
 from sqlalchemy import Column, LargeBinary, Index
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.types import JSON
 from sqlmodel import SQLModel, Field
 
@@ -31,7 +31,8 @@ class ForestFeature(SQLModel, table=True):
     __tablename__ = "forest_feature"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    layer_type: str = Field(index=True, max_length=32, description="imsang / sanji / landslide / soil")
+    layer_type: str = Field(index=True, max_length=32, description="imsang / sanji / landslide / soil / mountain_poi")
+    geom_type: str = Field(default="Polygon", max_length=16, description="Point / Polygon / MultiPolygon")
     source_file: Optional[str] = Field(default=None, max_length=256)
 
     # BBOX (EPSG:4326, 도 단위). 1 차 필터용

@@ -146,6 +146,7 @@ def ingest_one_layer(
 
             feat = ForestFeature(
                 layer_type=layer,
+                geom_type=geom_wgs.geom_type,
                 source_file=src.name,
                 min_lng=minx, max_lng=maxx,
                 min_lat=miny, max_lat=maxy,

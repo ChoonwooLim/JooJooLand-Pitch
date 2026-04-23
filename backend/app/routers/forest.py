@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..core.db import get_session
-from ..services.forest_gis import analyze_parcel, dataset_status
+from ..services.forest_gis import analyze_parcel, dataset_status, nearby_poi, nearby_poi_project
 
 router = APIRouter(prefix="/api/forest", tags=["forest"])
 
@@ -86,3 +86,34 @@ def analyze_batch(req: AnalyzeBatchRequest, db: Session = Depends(get_session)) 
         project_summary[layer] = items
 
     return {"per_parcel": results, "project_summary": project_summary}
+
+
+class NearbyPOIRequest(BaseModel):
+    parcels: list[dict[str, Any]] = Field(
+        ..., description="필지 GeoJSON geometry 배열 (parcel_no 는 불필요)"
+    )
+    radius_m: float = Field(3000.0, description="반경(미터)")
+    limit: int = Field(500, description="반환 포인트 개수 상한")
+
+
+@router.post("/nearby-poi")
+def nearby_poi_endpoint(req: NearbyPOIRequest, db: Session = Depends(get_session)) -> dict:
+    """여러 필지의 union 영역 주변 등산 시설 포인트 조회."""
+    try:
+        return nearby_poi_project(db, req.parcels, radius_m=req.radius_m, limit=req.limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"nearby-poi 실패: {e}")
+
+
+class NearbyPOIOneRequest(BaseModel):
+    geometry: dict[str, Any]
+    radius_m: float = 3000.0
+    limit: int = 500
+
+
+@router.post("/nearby-poi-one")
+def nearby_poi_one(req: NearbyPOIOneRequest, db: Session = Depends(get_session)) -> dict:
+    try:
+        return nearby_poi(db, req.geometry, radius_m=req.radius_m, limit=req.limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"nearby-poi-one 실패: {e}")

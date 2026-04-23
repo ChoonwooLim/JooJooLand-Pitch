@@ -175,3 +175,124 @@ def dataset_status(db: Session) -> dict:
         .group_by(ForestFeature.layer_type)
     ).all()
     return {layer: count for layer, count in rows}
+
+
+# ==================== POI (Point) 주변 검색 ====================
+
+def _poi_category(attrs: dict) -> str:
+    """등산로 포인트의 시설 종류 정규화."""
+    raw = str(_pick(attrs, "DETAIL_SPO", "detail_spo", "detail") or "").strip()
+    r = raw
+    if not r:
+        return "기타"
+    for kw, cat in [
+        ("이정표", "이정표"),
+        ("안내판", "안내판"),
+        ("갈림길", "갈림길"),
+        ("정상",   "정상"),
+        ("봉우리", "봉우리"),
+        ("화장실", "화장실"),
+        ("쉼터",   "쉼터"),
+        ("주차장", "주차장"),
+        ("야영",   "야영지"),
+        ("전망",   "전망대"),
+        ("대피",   "대피소"),
+        ("수원",   "수원"),
+        ("약수",   "약수"),
+        ("능선",   "능선지점"),
+    ]:
+        if kw in r:
+            return cat
+    return r[:20] or "기타"
+
+
+def nearby_poi(
+    db: Session,
+    parcel_geom_geojson: dict,
+    radius_m: float = 3000.0,
+    limit: int = 500,
+) -> dict:
+    """필지 폴리곤 주변 `radius_m` 이내 등산로 포인트 리스트 + 카테고리 집계.
+
+    - 입력: 파셀 GeoJSON geometry
+    - 출력: {
+        'total': N, 'by_category': [...], 'points': [...]  # 거리 오름차순 (limit)
+      }
+    """
+    parcel = _parse_parcel_geojson(parcel_geom_geojson)
+    minx, miny, maxx, maxy = parcel.bounds
+
+    # BBOX 확장 (반경만큼) — 위경도 근사
+    d = radius_m / 111000.0
+    stmt = select(ForestFeature).where(
+        ForestFeature.layer_type == "mountain_poi",
+        ForestFeature.min_lng >= minx - d,
+        ForestFeature.max_lng <= maxx + d,
+        ForestFeature.min_lat >= miny - d,
+        ForestFeature.max_lat <= maxy + d,
+    )
+    features = db.exec(stmt).all()
+
+    # EPSG:5179 등적 투영으로 거리 계산
+    parcel_proj = shp_transform(_AREA_PROJ, parcel)
+
+    results: list[dict] = []
+    for feat in features:
+        geom = shp_wkb.loads(bytes(feat.geom_wkb))
+        geom_proj = shp_transform(_AREA_PROJ, geom)
+        dist = parcel_proj.distance(geom_proj)
+        if dist > radius_m:
+            continue
+        attrs = feat.attrs or {}
+        # geom 중심 좌표 (Point 일 때)
+        if geom.geom_type == "Point":
+            lng, lat = geom.x, geom.y
+        else:
+            c = geom.centroid
+            lng, lat = c.x, c.y
+        results.append({
+            "name": _pick(attrs, "MNTN_NM") or "",
+            "detail": _pick(attrs, "DETAIL_SPO") or "",
+            "category": _poi_category(attrs),
+            "distance_m": round(dist, 1),
+            "lng": round(lng, 6),
+            "lat": round(lat, 6),
+            "attrs": {k: v for k, v in attrs.items() if k in (
+                "MNTN_NM", "MNTN_CODE", "PMNTN_SPOT", "MANAGE_SP1", "MANAGE_SP2"
+            )},
+        })
+
+    results.sort(key=lambda r: r["distance_m"])
+
+    # 카테고리 집계
+    by_cat: dict[str, int] = {}
+    for r in results:
+        by_cat[r["category"]] = by_cat.get(r["category"], 0) + 1
+    by_category = sorted(
+        [{"category": k, "count": v} for k, v in by_cat.items()],
+        key=lambda x: -x["count"],
+    )
+
+    return {
+        "total": len(results),
+        "radius_m": radius_m,
+        "by_category": by_category,
+        "points": results[:limit],
+    }
+
+
+def nearby_poi_project(
+    db: Session,
+    parcel_features: list[dict],
+    radius_m: float = 3000.0,
+    limit: int = 500,
+) -> dict:
+    """프로젝트 여러 필지의 경계선을 union 하여 주변 POI 한 번에 조회."""
+    if not parcel_features:
+        return {"total": 0, "points": [], "by_category": []}
+    geoms = [_parse_parcel_geojson(f) for f in parcel_features]
+    from shapely.ops import unary_union
+    union = unary_union(geoms)
+    # geometry dict 로 다시 감싸서 nearby_poi 재사용
+    from shapely.geometry import mapping as shp_mapping
+    return nearby_poi(db, shp_mapping(union), radius_m=radius_m, limit=limit)

@@ -132,6 +132,7 @@
   // ==================== 산림 API (백엔드 SHP 분석) ====================
   let _forestStatus = null;           // { loaded_layers: {...}, ready: bool }
   let _forestBatchResult = null;      // analyze-batch 응답
+  let _nearbyPoiResult = null;        // nearby-poi 응답
 
   async function fetchForestStatus() {
     try {
@@ -162,6 +163,25 @@
     } catch { return null; }
   }
 
+  async function fetchNearbyPoi(radiusM = 3000) {
+    const items = [];
+    const polyMap = window.polygonsById || {};
+    Object.values(polyMap).forEach(entry => {
+      const f = entry?.polygon?.feature;
+      if (f && f.geometry) items.push(f.geometry);
+    });
+    if (items.length === 0) return null;
+    try {
+      const r = await fetch('/api/forest/nearby-poi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcels: items, radius_m: radiusM, limit: 500 }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
   function renderProjectSummary(ps) {
     if (!ps || Object.keys(ps).length === 0) return '';
     const labelMap = { imsang: '임상 분포', sanji: '산지 구분', landslide: '산사태 위험' };
@@ -183,6 +203,48 @@
         </div>`;
     }).join('');
     return `<div class="linfo-forest-project">${blocks}</div>`;
+  }
+
+  function poiSection() {
+    if (!_forestStatus) return `<p class="linfo-hint">조회 중...</p>`;
+    const hasPoi = (_forestStatus.loaded_layers || {}).mountain_poi > 0;
+    if (!hasPoi) {
+      return `<div class="linfo-notice">
+        <strong>ℹ️ 등산로 포인트 미적재</strong> — 적재 명령:
+        <code>python -m backend.scripts.ingest_mountain_poi --source-dir /data/forest/mountain_poi --truncate</code>
+      </div>`;
+    }
+    if (!_nearbyPoiResult) return `<p class="linfo-hint">주변 POI 계산 중...</p>`;
+    const res = _nearbyPoiResult;
+    if (!res.total) return `<p class="linfo-hint">반경 ${Math.round(res.radius_m)}m 내 POI 없음</p>`;
+
+    const catChips = (res.by_category || []).map(c =>
+      `<span class="linfo-chip">${c.category} <b>${c.count}</b></span>`
+    ).join(' ');
+
+    const rows = (res.points || []).slice(0, 50).map(p => `<tr>
+      <td class="num">${fmt(Math.round(p.distance_m))}m</td>
+      <td>${p.name || '-'}</td>
+      <td><span class="linfo-chip">${p.category}</span></td>
+      <td><small>${p.detail || ''}</small></td>
+    </tr>`).join('');
+
+    return `
+      <div class="linfo-stats-grid">
+        ${statRow('반경', fmt(Math.round(res.radius_m)), 'm', true)}
+        ${statRow('주변 POI 총수', fmt(res.total), '개', true)}
+        ${statRow('카테고리 종', fmt((res.by_category || []).length), '종')}
+      </div>
+      <div style="margin:10px 0;">${catChips}</div>
+      <div class="linfo-scroll-table">
+        <table class="linfo-table">
+          <thead><tr><th class="num">거리</th><th>산/지점명</th><th>분류</th><th>상세</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${res.total > 50 ? `<p class="linfo-hint">최대 50 개만 표시. 전체 ${fmt(res.total)} 개.</p>` : ''}
+      <p class="linfo-hint">지도 사이드바 <b>🥾 등산 인프라</b> 토글로 지도상 마커 확인 가능.</p>
+    `;
   }
 
   function forestApiSection() {
@@ -363,6 +425,9 @@
       sectionCard('📐 산림 분석 (SHP 자체 계산)',
         '서버에 적재된 임상도·산지구분도와 교집합 실측',
         forestApiSection()),
+      sectionCard('🥾 주변 등산 인프라',
+        '반경 3km 내 산림청 등록 등산로 지점 (이정표·정상·갈림길·대피소 등)',
+        poiSection()),
       sectionCard('🌲 산지·산림 정보', '임/임야 필지 + 보전/준보전 판정 외부 링크', forestSection(parcels)),
       sectionCard('🛣️ 인접 레이어 현황', '사이드바에서 켜둔 도로·구거·하천 등 집계', adjacentSection()),
       sectionCard('🔗 외부 공식 조회', '정확한 규제·경사·산지구분·공시지가 등은 아래 서비스에서 확인', externalLinksSection(parcels)),
@@ -379,8 +444,14 @@
     modal.classList.remove('hidden');
     // 백엔드 산림 분석: 비동기로 후속 업데이트
     if (!_forestStatus) _forestStatus = await fetchForestStatus();
-    if (_forestStatus && _forestStatus.ready && !_forestBatchResult) {
+    const layers = _forestStatus?.loaded_layers || {};
+    const hasPolygon = layers.imsang || layers.sanji || layers.landslide;
+    const hasPoi = layers.mountain_poi;
+    if (hasPolygon && !_forestBatchResult) {
       _forestBatchResult = await fetchForestBatch();
+    }
+    if (hasPoi && !_nearbyPoiResult) {
+      _nearbyPoiResult = await fetchNearbyPoi(3000);
     }
     // 재렌더 (데이터 도착 후)
     body.innerHTML = render();

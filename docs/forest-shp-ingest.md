@@ -1,5 +1,40 @@
 # 산림청 SHP 자체 적재 — 멀티 프로젝트 운영 가이드
 
+## 레이어 종류 요약 — 어떤 데이터를 어떤 레이어로?
+
+| FGIS 다운로드 형태 | 지오메트리 | 레이어 키 | 분석 방식 |
+|-------------------|-----------|----------|-----------|
+| 임상도 SHP (FRTP_S) | Polygon | `imsang` | 파셀과 교집합 면적 (수종·경급·영급·수관밀도) |
+| 산지구분도 SHP (MT_CBND) | Polygon | `sanji` | 교집합 → 보전/준보전/임업용/공익용 면적 |
+| 산사태위험등급도 SHP | Polygon | `landslide` | 교집합 → 등급별 면적 |
+| 산림입지토양도 SHP | Polygon | `soil` | 교집합 → 토양종류·심도 |
+| 등산로 시도별 ZIP (DATA001) | **Point** | `mountain_poi` | 주변 반경 검색 (거리·카테고리) |
+
+## 지금 받은 파일을 어디에 넣는가
+
+받으신 `11.zip ~ 50.zip` 은 전부 **등산로 포인트** 데이터.
+
+```
+/data/forest/mountain_poi/   ← 시도별 등산로 ZIP
+  11.zip (서울)  26.zip (부산) ... 41.zip (경기) ...
+  50.zip (제주)
+```
+
+`docker exec ... python -m backend.scripts.ingest_mountain_poi --source-dir /data/forest/mountain_poi --truncate`
+로 한 번에 적재. 내부에서 각 ZIP 을 임시 폴더에 풀어 SHP 읽음.
+
+임상도·산지구분도·산사태위험등급도 폴리곤 SHP 는 **별도**:
+
+```
+/data/forest/nationwide/
+  imsang.shp, imsang.shx, imsang.dbf, imsang.prj
+  sanji.shp, ...
+  landslide.shp, ...
+```
+
+`ingest_forest_all.py` 로 일괄.
+
+
 ## 아키텍처 한 장 요약
 
 ```
