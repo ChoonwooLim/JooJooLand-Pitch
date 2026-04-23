@@ -9,6 +9,7 @@ let baseLayers = {};
 let currentBaseLayer = null;
 let cadastralLayer = null;
 let polygonsById = {};   // no -> { polygon, label, parcel }
+window.polygonsById = polygonsById;
 let resolvedParcels = []; // 성공한 필지만
 let currentApiKey = '';   // WMS 오버레이 토글용 (startMap 시 세팅)
 const wmsLayers = {};     // { layerKey: L.tileLayer.wms }

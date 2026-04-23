@@ -12,3 +12,9 @@ httpx==0.28.1
 pydantic-settings==2.7.1
 email-validator==2.2.0
 jinja2==3.1.4
+
+# GIS — 산림청 SHP 적재·교차연산용 (PostGIS 없이 shapely 로 Python 측 계산)
+shapely==2.0.6
+pyogrio==0.10.0
+pyproj==3.7.0
+

@@ -129,6 +129,81 @@
     </table>`;
   }
 
+  // ==================== 산림 API (백엔드 SHP 분석) ====================
+  let _forestStatus = null;           // { loaded_layers: {...}, ready: bool }
+  let _forestBatchResult = null;      // analyze-batch 응답
+
+  async function fetchForestStatus() {
+    try {
+      const r = await fetch('/api/forest/status');
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  async function fetchForestBatch() {
+    // 로드된 필지만 geometry 전달
+    const items = [];
+    const polyMap = window.polygonsById || {};
+    Object.entries(polyMap).forEach(([no, entry]) => {
+      const f = entry?.polygon?.feature;
+      if (!f || !f.geometry) return;
+      items.push({ parcel_no: parseInt(no, 10), geometry: f.geometry, layers: ['imsang', 'sanji', 'landslide'] });
+    });
+    if (items.length === 0) return null;
+    try {
+      const r = await fetch('/api/forest/analyze-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcels: items }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  function renderProjectSummary(ps) {
+    if (!ps || Object.keys(ps).length === 0) return '';
+    const labelMap = { imsang: '임상 분포', sanji: '산지 구분', landslide: '산사태 위험' };
+    const blocks = Object.entries(ps).map(([layer, items]) => {
+      if (!items || items.length === 0) return '';
+      const rows = items.map(it => `<tr>
+        <td>${it.category}</td>
+        <td class="num">${fmt(Math.round(it.area_m2))}</td>
+        <td class="num">${fmt(Math.round(it.area_pyeong))}</td>
+        <td class="num">${fmt(it.parcel_count)}</td>
+      </tr>`).join('');
+      return `
+        <div class="linfo-subsection">
+          <h4>${labelMap[layer] || layer}</h4>
+          <table class="linfo-table">
+            <thead><tr><th>분류</th><th class="num">㎡</th><th class="num">평</th><th class="num">필지수</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+    return `<div class="linfo-forest-project">${blocks}</div>`;
+  }
+
+  function forestApiSection() {
+    if (!_forestStatus) return `<p class="linfo-hint">산림 데이터셋 상태 조회 중...</p>`;
+    if (!_forestStatus.ready) {
+      return `
+        <div class="linfo-notice">
+          <strong>ℹ️ SHP 미적재</strong>: 서버에 산림청 SHP 데이터가 아직 올라가지 않았습니다.
+          관리자가 <code>ingest_forest_shp.py</code> 스크립트로 적재해야 계산값이 표시됩니다.
+          그 전까지는 아래 외부 링크로 개별 조회하세요.
+        </div>`;
+    }
+    const layers = _forestStatus.loaded_layers || {};
+    const chips = Object.entries(layers).map(([k, v]) => `<span class="linfo-chip">${k}: ${fmt(v)}건</span>`).join(' ');
+    let body = `<p class="linfo-hint">적재 레이어: ${chips}</p>`;
+    if (_forestBatchResult && _forestBatchResult.project_summary) {
+      body += renderProjectSummary(_forestBatchResult.project_summary);
+    }
+    return body;
+  }
+
   function forestSection(parcels) {
     const forests = forestParcels(parcels);
     if (forests.length === 0) {
@@ -285,6 +360,9 @@
       sectionCard('📌 총괄', '프로젝트 전체 수치', summary),
       sectionCard('🏷️ 지목 분포', '카테고리별 필지·면적·비율', categoryTable(agg.byCategory, agg.total.m2)),
       sectionCard('👥 소유자 분포', '소유자별 필지·면적·비율', ownerTable(agg.byOwner, agg.total.m2)),
+      sectionCard('📐 산림 분석 (SHP 자체 계산)',
+        '서버에 적재된 임상도·산지구분도와 교집합 실측',
+        forestApiSection()),
       sectionCard('🌲 산지·산림 정보', '임/임야 필지 + 보전/준보전 판정 외부 링크', forestSection(parcels)),
       sectionCard('🛣️ 인접 레이어 현황', '사이드바에서 켜둔 도로·구거·하천 등 집계', adjacentSection()),
       sectionCard('🔗 외부 공식 조회', '정확한 규제·경사·산지구분·공시지가 등은 아래 서비스에서 확인', externalLinksSection(parcels)),
@@ -293,12 +371,19 @@
   }
 
   // ==================== 모달 제어 ====================
-  function openModal() {
+  async function openModal() {
     const body = document.getElementById(BODY_ID);
     const modal = document.getElementById(MODAL_ID);
     if (!body || !modal) return;
     body.innerHTML = render();
     modal.classList.remove('hidden');
+    // 백엔드 산림 분석: 비동기로 후속 업데이트
+    if (!_forestStatus) _forestStatus = await fetchForestStatus();
+    if (_forestStatus && _forestStatus.ready && !_forestBatchResult) {
+      _forestBatchResult = await fetchForestBatch();
+    }
+    // 재렌더 (데이터 도착 후)
+    body.innerHTML = render();
   }
   function closeModal() {
     document.getElementById(MODAL_ID)?.classList.add('hidden');

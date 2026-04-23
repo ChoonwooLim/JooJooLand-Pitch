@@ -14,7 +14,7 @@ from .core.db import engine, init_db
 from .core.security import hash_password
 from .models.content_block import ContentBlock
 from .models.user import User
-from .routers import auth, content, pets, parcels, ai, vworld, upgrade, leads, dataroom
+from .routers import auth, content, pets, parcels, ai, vworld, upgrade, leads, dataroom, forest
 from .routers.admin import admin_router
 
 logger = logging.getLogger("joojooland.migrate")
@@ -164,6 +164,7 @@ app.include_router(vworld.router)
 app.include_router(upgrade.router)
 app.include_router(leads.router)
 app.include_router(dataroom.router)
+app.include_router(forest.router)
 app.include_router(admin_router)
 
 

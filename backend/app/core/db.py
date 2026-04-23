@@ -20,6 +20,7 @@ def init_db() -> None:
         ai_chat_log,
         email_log,
         download_log,
+        forest,
     )
     SQLModel.metadata.create_all(engine)
 
