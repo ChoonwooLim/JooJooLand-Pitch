@@ -152,7 +152,8 @@
       items.push({
         parcel_no: parseInt(no, 10),
         geometry: f.geometry,
-        layers: ['imsang', 'sanji', 'landslide', 'soil', 'productivity'],
+        layers: ['imsang', 'sanji', 'landslide', 'soil', 'productivity',
+                 'forest_function', 'state_forest', 'public_forest'],
       });
     });
     if (items.length === 0) return null;
@@ -161,6 +162,25 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parcels: items }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  let _roadsResult = null;
+  async function fetchForestRoads() {
+    const items = [];
+    Object.values(window.polygonsById || {}).forEach(entry => {
+      const f = entry?.polygon?.feature;
+      if (f && f.geometry) items.push(f.geometry);
+    });
+    if (items.length === 0) return null;
+    try {
+      const r = await fetch('/api/forest/forest-roads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcels: items, radius_m: 2000, limit: 30 }),
       });
       if (!r.ok) return null;
       return await r.json();
@@ -213,6 +233,9 @@
       landslide: '⚠️ 산사태 위험',
       soil: '🌱 산림입지 (토양·모암)',
       productivity: '🌳 임지 생산능력',
+      forest_function: '🎯 산림기능 (휴양·보전·수자원 등)',
+      state_forest: '🏛️ 국유림 인접',
+      public_forest: '🏢 공유림 인접',
     };
     const blocks = Object.entries(ps).map(([layer, items]) => {
       if (!items || items.length === 0) return '';
@@ -232,6 +255,46 @@
         </div>`;
     }).join('');
     return `<div class="linfo-forest-project">${blocks}</div>`;
+  }
+
+  function roadsSection() {
+    if (!_forestStatus) return `<p class="linfo-hint">조회 중...</p>`;
+    const has = (_forestStatus.loaded_layers || {}).forest_road > 0;
+    if (!has) {
+      return `<div class="linfo-notice">
+        <strong>ℹ️ 임도망 미적재</strong> — <code>--layer forest_road</code> 적재 후 표시.
+      </div>`;
+    }
+    if (!_roadsResult) return `<p class="linfo-hint">반경 2km 임도 계산 중...</p>`;
+    const r = _roadsResult;
+    if (!r.total) {
+      return `<p class="linfo-hint">반경 ${Math.round(r.radius_m)}m 내 임도 없음</p>`;
+    }
+    const n = r.nearest || {};
+    const rows = (r.roads || []).slice(0, 15).map(rd => `<tr>
+      <td class="num">${fmt(Math.round(rd.distance_m))}m</td>
+      <td>${rd.name || '-'}</td>
+      <td class="num">${fmt(Math.round(rd.length_m))}m</td>
+      <td><small>${rd.category || ''}</small></td>
+      <td><small>${rd.intersects_parcel ? '<b style="color:#4caf50">통과</b>' : '-'}</small></td>
+    </tr>`).join('');
+    return `
+      <div class="linfo-stats-grid">
+        ${statRow('반경 2km 임도', fmt(r.total), '개', true)}
+        ${statRow('필지 관통', fmt(r.intersecting || 0), '개')}
+        ${statRow('최근접 거리', fmt(Math.round(n.distance_m || 0)), 'm', true)}
+      </div>
+      <p class="linfo-hint" style="margin-top:10px;">
+        <b>최근접 임도</b>: ${n.name || '(이름없음)'}
+        — 거리 ${fmt(Math.round(n.distance_m || 0))}m
+        (길이 ${fmt(Math.round(n.length_m || 0))}m, 폭 ${n.width_m || '?'}m,
+        ${n.year ? n.year + '년 준공' : '연도 미상'})
+      </p>
+      <table class="linfo-table">
+        <thead><tr><th class="num">거리</th><th>임도명</th><th class="num">길이</th><th>구분</th><th>통과</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
   }
 
   function slopeSection() {
@@ -496,6 +559,9 @@
       sectionCard('⛰️ 경사도 분포 (래스터 zonal stats)',
         '10m 해상도 GeoTIFF 와 교차 — 개발 가능 면적의 정량 근거',
         slopeSection()),
+      sectionCard('🛣️ 임도 접근성',
+        '반경 2km 내 임도 (산림청 FRRD) — 차량 접근성·시공 장비 반입 근거',
+        roadsSection()),
       sectionCard('🥾 주변 등산 인프라',
         '반경 3km 내 산림청 등록 등산로 지점 (이정표·정상·갈림길·대피소 등)',
         poiSection()),
@@ -526,6 +592,9 @@
     }
     if (_forestStatus?.slope_raster_ready && !_slopeResult) {
       _slopeResult = await fetchSlope();
+    }
+    if ((layers.forest_road || 0) > 0 && !_roadsResult) {
+      _roadsResult = await fetchForestRoads();
     }
     // 재렌더 (데이터 도착 후)
     body.innerHTML = render();

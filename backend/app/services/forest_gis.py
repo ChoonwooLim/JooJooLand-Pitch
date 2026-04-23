@@ -158,6 +158,87 @@ def classify_productivity(attrs: dict) -> dict:
     }
 
 
+# 산림기능구분도 (DATA031) — 7 기능 중 가중치 최대값으로 대표 기능 결정
+_FF_KEY_MAP = {
+    "PF":   "보전기능",         # Preservation (생활환경·수원함양 등)
+    "WRCF": "수자원함양기능",   # Water Resource Conservation
+    "FDMF": "생활환경보전기능", # Forest for Disaster/Daily environment
+    "EECF": "자연환경보전기능", # Ecological Environment Conservation
+    "FRCF": "산림휴양기능",     # Forest Recreation
+    "RHF":  "산림경관기능",     # Recreation & Historical/landscape
+    "UEF":  "목재생산기능",     # Utility Economic Forest
+}
+
+
+def classify_forest_function_category(attrs: dict) -> str:
+    """7 개 기능 값 중 최대값 기능명."""
+    vals = {}
+    for k in _FF_KEY_MAP:
+        v = _pick(attrs, k, k.lower())
+        try:
+            vals[k] = float(v) if v is not None else 0
+        except Exception:
+            vals[k] = 0
+    if not vals or all(v == 0 for v in vals.values()):
+        return "미분류"
+    top = max(vals.items(), key=lambda x: x[1])
+    return _FF_KEY_MAP.get(top[0], top[0])
+
+
+def classify_forest_function(attrs: dict) -> dict:
+    """7 기능 가중치 전체 + 대표 기능."""
+    out = {"대표기능": classify_forest_function_category(attrs)}
+    for k, label in _FF_KEY_MAP.items():
+        v = _pick(attrs, k, k.lower())
+        if v is not None:
+            try:
+                out[label] = round(float(v), 2)
+            except Exception:
+                out[label] = v
+    return out
+
+
+# 국유림·공유림 (DATA021/022) — 소유 구분
+def classify_state_forest_category(attrs: dict) -> str:
+    """clas_ow (소유분류) 를 그대로 또는 정규화."""
+    raw = str(_pick(attrs, "clas_ow", "CLAS_OW", "gov_ct", "GOV_CT") or "")
+    r = raw.strip()
+    if not r:
+        return "미분류"
+    # 자주 나오는 값 매핑
+    if "국유" in r or r == "1": return "국유림"
+    if "공유" in r or r == "2": return "공유림"
+    if "사유" in r or r == "3": return "사유림"
+    return r
+
+
+def classify_state_forest(attrs: dict) -> dict:
+    return {
+        "소유구분": classify_state_forest_category(attrs),
+        "관리기관": _pick(attrs, "gov_ct", "GOV_CT"),
+        "경영방식": _pick(attrs, "comp_nm", "COMP_NM"),
+        "PNU":      _pick(attrs, "pnu_cd", "PNU_CD"),
+        "주소":     _pick(attrs, "addr_nm", "ADDR_NM"),
+    }
+
+
+# 임도 (DATA019) — LineString, 접근성 분석용
+def classify_forest_road_category(attrs: dict) -> str:
+    raw = str(_pick(attrs, "FRRD_DV_I", "FRRD_DV_B", "FR_TH_DV") or "")
+    r = raw.strip()
+    return r or "임도"
+
+
+def classify_forest_road(attrs: dict) -> dict:
+    return {
+        "임도명":   _pick(attrs, "FRRD_NM", "frrd_nm"),
+        "구분":     classify_forest_road_category(attrs),
+        "설치년도": _pick(attrs, "FRRD_ESTBL", "frrd_estbl", "FR_TH_YR"),
+        "폭(m)":   _pick(attrs, "FRRD_FCLTW", "frrd_fcltw"),
+        "관리기관": _pick(attrs, "FRRD_INSTT", "frrd_instt"),
+    }
+
+
 # ==================== 메인 분석 함수 ====================
 
 def analyze_parcel(
@@ -219,6 +300,14 @@ def analyze_parcel(
                 p = classify_productivity(feat.attrs)
                 key = classify_productivity_category(feat.attrs)
                 bucket[key]["detail"] = p
+            elif layer == "forest_function":
+                ff = classify_forest_function(feat.attrs)
+                key = classify_forest_function_category(feat.attrs)
+                bucket[key]["detail"] = ff
+            elif layer in ("state_forest", "public_forest"):
+                sf = classify_state_forest(feat.attrs)
+                key = classify_state_forest_category(feat.attrs)
+                bucket[key]["detail"] = sf
             else:
                 key = "기타"
 
@@ -377,3 +466,75 @@ def nearby_poi_project(
     # geometry dict 로 다시 감싸서 nearby_poi 재사용
     from shapely.geometry import mapping as shp_mapping
     return nearby_poi(db, shp_mapping(union), radius_m=radius_m, limit=limit)
+
+
+# ==================== LineString (임도) 전용 분석 ====================
+
+def nearby_forest_roads(
+    db: Session,
+    parcel_geom_geojson: dict,
+    radius_m: float = 2000.0,
+    limit: int = 50,
+) -> dict:
+    """파셀에서 가까운 임도 LineString 을 거리순 반환 + 교차 여부."""
+    parcel = _parse_parcel_geojson(parcel_geom_geojson)
+    minx, miny, maxx, maxy = parcel.bounds
+    d = radius_m / 111000.0
+    stmt = select(ForestFeature).where(
+        ForestFeature.layer_type == "forest_road",
+        ForestFeature.min_lng <= maxx + d,
+        ForestFeature.max_lng >= minx - d,
+        ForestFeature.min_lat <= maxy + d,
+        ForestFeature.max_lat >= miny - d,
+    )
+    features = db.exec(stmt).all()
+
+    parcel_proj = shp_transform(_AREA_PROJ, parcel)
+
+    roads: list[dict] = []
+    intersecting = 0
+    for feat in features:
+        line = shp_wkb.loads(bytes(feat.geom_wkb))
+        line_proj = shp_transform(_AREA_PROJ, line)
+        dist = parcel_proj.distance(line_proj)
+        if dist > radius_m:
+            continue
+        intersects = parcel_proj.intersects(line_proj)
+        if intersects:
+            intersecting += 1
+        length_m = line_proj.length
+        attrs = feat.attrs or {}
+        roads.append({
+            "name": _pick(attrs, "FRRD_NM") or "",
+            "category": classify_forest_road_category(attrs),
+            "distance_m": round(dist, 1),
+            "length_m": round(length_m, 1),
+            "intersects_parcel": intersects,
+            "width_m": _pick(attrs, "FRRD_FCLTW"),
+            "year": _pick(attrs, "FRRD_ESTBL", "FR_TH_YR"),
+        })
+
+    roads.sort(key=lambda r: r["distance_m"])
+    nearest = roads[0] if roads else None
+    return {
+        "total": len(roads),
+        "intersecting": intersecting,
+        "nearest": nearest,
+        "roads": roads[:limit],
+        "radius_m": radius_m,
+    }
+
+
+def nearby_forest_roads_project(
+    db: Session,
+    parcel_features: list[dict],
+    radius_m: float = 2000.0,
+    limit: int = 50,
+) -> dict:
+    if not parcel_features:
+        return {"total": 0, "roads": []}
+    geoms = [_parse_parcel_geojson(f) for f in parcel_features]
+    from shapely.ops import unary_union
+    from shapely.geometry import mapping as shp_mapping
+    union = unary_union(geoms)
+    return nearby_forest_roads(db, shp_mapping(union), radius_m=radius_m, limit=limit)

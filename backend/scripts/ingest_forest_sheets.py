@@ -45,9 +45,18 @@ from backend.scripts.ingest_forest_shp import ingest_one_layer, parse_bbox  # no
 # 속성 컬럼 스키마로 레이어 자동 판정
 def detect_layer(fields: list[str]) -> str:
     lower = {f.lower() for f in fields}
+    # forest_road (DATA019): LineString 임도
+    if any(k in lower for k in ("frrd_nm", "frrd_fcltd", "frrd_estbl", "frrd_fcltw", "frrd_instt")):
+        return "forest_road"
+    # forest_function (DATA031): 산림기능구분
+    if all(k in lower for k in ("pf", "wrcf", "fdmf", "eecf", "frcf")):
+        return "forest_function"
+    # state/public forest (DATA021/022)
+    if any(k in lower for k in ("clas_ow", "pnu_cd")) and any(k in lower for k in ("comp_nm", "gov_ct")):
+        return "state_forest"  # 국/공 구분은 classify 가 내용 보고 정함
     if any(k in lower for k in ("frtp_cd", "frtp_nm", "koftr_nm", "dmcls_cd", "agcls_cd")):
         return "imsang"
-    # productivity (DATA014): 수종별 지위지수 + 입지조사 속성
+    # productivity (DATA014): 수종별 지위지수
     if any(k in lower for k in ("stqgd_val", "larch_stin", "krpn_stind", "cndst_pine", "actsm_stin")):
         return "productivity"
     # soil (DATA015): 모암·토심·토성·경사
@@ -74,7 +83,10 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--layer", required=True,
-                    choices=["imsang", "sanji", "landslide", "soil", "productivity", "mountain_poi", "auto"],
+                    choices=[
+                        "imsang", "sanji", "landslide", "soil", "productivity", "mountain_poi",
+                        "forest_road", "state_forest", "public_forest", "forest_function", "auto",
+                    ],
                     help="적재할 레이어. 'auto' 면 SHP 컬럼 스키마로 자동 판정")
     ap.add_argument("--source-dir", required=True, help="도엽 ZIP 이 모여있는 디렉토리")
     ap.add_argument("--bbox", default=settings.project_bbox,

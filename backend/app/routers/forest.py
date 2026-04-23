@@ -15,7 +15,11 @@ from sqlmodel import Session
 
 from ..core.db import get_session
 from ..core.config import get_settings
-from ..services.forest_gis import analyze_parcel, dataset_status, nearby_poi, nearby_poi_project
+from ..services.forest_gis import (
+    analyze_parcel, dataset_status,
+    nearby_poi, nearby_poi_project,
+    nearby_forest_roads_project,
+)
 from ..services.forest_raster import analyze_slope_raster
 
 router = APIRouter(prefix="/api/forest", tags=["forest"])
@@ -161,3 +165,18 @@ def slope_batch(req: SlopeBatchRequest) -> dict:
         return analyze_slope_raster(mapping(union), s.slope_raster_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"slope-batch 실패: {e}")
+
+
+class ForestRoadsRequest(BaseModel):
+    parcels: list[dict[str, Any]] = Field(..., description="GeoJSON geometry 배열")
+    radius_m: float = Field(2000.0, description="반경(m)")
+    limit: int = 50
+
+
+@router.post("/forest-roads")
+def forest_roads_endpoint(req: ForestRoadsRequest, db: Session = Depends(get_session)) -> dict:
+    """파셀 union 주변 임도 (LineString) 거리순 + 교차 여부."""
+    try:
+        return nearby_forest_roads_project(db, req.parcels, radius_m=req.radius_m, limit=req.limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"forest-roads 실패: {e}")
