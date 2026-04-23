@@ -45,12 +45,12 @@ function PageLoader() {
   );
 }
 
-function PublicShell({ children }) {
+function PublicShell({ children, hideFooter = false, flush = false }) {
   return (
     <div className="app-shell">
       <Header />
-      <main className="app-main">{children}</main>
-      <Footer />
+      <main className={flush ? 'app-main app-main--flush' : 'app-main'}>{children}</main>
+      {!hideFooter && <Footer />}
     </div>
   );
 }
@@ -63,7 +63,7 @@ export default function App() {
         <Route path="/vision" element={<PublicShell><Vision /></PublicShell>} />
         <Route path="/themepark" element={<PublicShell><ThemePark /></PublicShell>} />
         <Route path="/clone" element={<PublicShell><DigitalClone /></PublicShell>} />
-        <Route path="/map" element={<PublicShell><MapPage /></PublicShell>} />
+        <Route path="/map" element={<PublicShell hideFooter flush><MapPage /></PublicShell>} />
         <Route path="/demo" element={<PublicShell><Demo /></PublicShell>} />
         <Route path="/investment" element={<PublicShell><Investment /></PublicShell>} />
         <Route path="/contact" element={<PublicShell><Contact /></PublicShell>} />

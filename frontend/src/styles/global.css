@@ -60,6 +60,14 @@ img { max-width: 100%; display: block; }
   padding-top: var(--header-height);
 }
 
+/* /map 처럼 풋터 없이 뷰포트를 꽉 채우는 페이지용 — 내부 고유 헤더(iframe 등)가
+   뷰포트 최상단에 보장돼야 할 때 사용. 사이트 헤더는 fixed 이므로 padding-top 유지. */
+.app-main--flush {
+  padding-top: var(--header-height);
+  height: 100vh;
+  overflow: hidden;
+}
+
 .page-loader {
   min-height: 60vh;
   display: flex;

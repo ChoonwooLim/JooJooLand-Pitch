@@ -1,26 +1,8 @@
-.hero {
-  padding: var(--space-xl) var(--space-xl);
-  background: var(--joojoo-night);
-  color: var(--joojoo-text-invert);
-  text-align: center;
-}
-
-.heroInner {
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.hint {
-  margin-top: var(--space-md);
-  color: rgba(245, 245, 250, 0.7);
-  font-size: 0.95rem;
-}
-
 .mapHost {
   width: 100%;
-  height: calc(100vh - var(--header-height) - 180px);
-  min-height: 600px;
+  height: calc(100vh - var(--header-height));
   background: var(--joojoo-night);
+  display: block;
 }
 
 .mapFrame {
