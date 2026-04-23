@@ -102,4 +102,34 @@
 - cc7dccc fix(forest): 래스터=산사태위험 정정 + Docker GDAL
 - 481ccef docs(forest): Orbitron 배포 레시피
 
+### 추가 세션 (프로덕션 배포 디버그 · 같은 날)
+
+Orbitron 배포 후 발생한 연쇄 이슈를 실서버 실측으로 해결:
+
+| 카테고리 | 작업 내용 | 상태 |
+|----------|----------|------|
+| fix | rasterio lazy import — Orbitron 자체 Dockerfile 템플릿에 libexpat 없어도 앱 기동 보장 | 완료 |
+| fix | geopandas==1.0.1 requirements 추가 + .prj 파싱 실패 시 EPSG:5179 fallback | 완료 |
+| fix | `_auto_migrate` ALTER TABLE 테이블명 정정 — `forestfeature` → `forest_feature` (UndefinedColumn 해결) | 완료 |
+| style | 토지정보 모달 라이트 테마 + 80vw (가독성·프레젠테이션 대응) | 완료 |
+| infra | 프로덕션 DB 에 8 레이어 49,279 피처 최종 적재 성공 | 완료 |
+
+**실서버 적재 결과** (`/api/forest/status`):
+- imsang 23,751 / soil 20,788 / productivity 2,833 / forest_function 925
+- state_forest 469 / private_forest 193 / forest_road 50 / mountain_poi 270
+- **total 49,279 features · ready: true**
+- landslide_raster_ready: false (Orbitron 이미지에 libexpat 부재 — 차후 과제)
+
+**인프라 발견**: Orbitron 플랫폼은 프로젝트 `backend/Dockerfile` 을 무시하고 자체
+템플릿(python:3.11 + gcc/libpq-dev)으로 빌드. 시스템 패키지 추가가 불가하므로
+`rasterio` 관련 기능은 lazy-import 패턴으로 격리.
+
+### 추가 커밋 (5 건)
+
+- f93ac21 fix(forest): rasterio lazy import
+- 4cae23c fix(forest): geopandas + CRS fallback
+- 3a16946 fix(forest): ALTER TABLE 테이블명 정정
+- ba85fcc style(landinfo): 라이트 테마 + 풀폭
+- 0aba731 style(landinfo): 80vw + 부모 모달 특이성 오버라이드
+
 ---
