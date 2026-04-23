@@ -1,14 +1,70 @@
 # 산림청 SHP 자체 적재 — 멀티 프로젝트 운영 가이드
 
+## FGIS 배포 현실
+
+FGIS 는 레이어마다 배포 단위가 다릅니다. 이 프로젝트는 3 가지 배포 형태를 모두 처리:
+
+| 레이어 | FGIS 배포 단위 | 1 ZIP 크기 | 프로젝트 적재 방식 |
+|--------|---------------|-----------|------------------|
+| 🥾 등산로 포인트 `mountain_poi` | **시·도 단위** (11~50.zip) | 수백 KB | 전국 받아 BBOX 필터 |
+| 🌲 임상도 `imsang` | **1:5,000 도엽 단위** (8자리 코드.zip) | 수백 KB~수 MB | 프로젝트 덮는 도엽 3~6장만 |
+| ⛰️ 산지구분도 `sanji` | **1:5,000 도엽 단위** | 동일 | 프로젝트 도엽만 |
+| ⚠️ 산사태위험 `landslide` | **1:5,000 도엽 단위** | 동일 | 프로젝트 도엽만 |
+| 🌱 산림입지토양도 `soil` | **1:5,000 도엽 단위** | 동일 | 프로젝트 도엽만 |
+
+이전 문서에서 "전국 SHP" 언급은 오해였습니다. 폴리곤 데이터는 **전국 일괄 다운로드가 없고** 도엽 단위만 가능.
+
 ## 레이어 종류 요약 — 어떤 데이터를 어떤 레이어로?
 
 | FGIS 다운로드 형태 | 지오메트리 | 레이어 키 | 분석 방식 |
 |-------------------|-----------|----------|-----------|
-| 임상도 SHP (FRTP_S) | Polygon | `imsang` | 파셀과 교집합 면적 (수종·경급·영급·수관밀도) |
-| 산지구분도 SHP (MT_CBND) | Polygon | `sanji` | 교집합 → 보전/준보전/임업용/공익용 면적 |
-| 산사태위험등급도 SHP | Polygon | `landslide` | 교집합 → 등급별 면적 |
-| 산림입지토양도 SHP | Polygon | `soil` | 교집합 → 토양종류·심도 |
+| 임상도 도엽 ZIP (FRTP_S) | Polygon | `imsang` | 파셀과 교집합 면적 (수종·경급·영급·수관밀도) |
+| 산지구분도 도엽 ZIP (MT_CBND) | Polygon | `sanji` | 교집합 → 보전/준보전/임업용/공익용 면적 |
+| 산사태위험등급도 도엽 ZIP | Polygon | `landslide` | 교집합 → 등급별 면적 |
+| 산림입지토양도 도엽 ZIP | Polygon | `soil` | 교집합 → 토양종류·심도 |
 | 등산로 시도별 ZIP (DATA001) | **Point** | `mountain_poi` | 주변 반경 검색 (거리·카테고리) |
+
+## 프로젝트를 덮는 도엽 찾기
+
+1. FGIS https://map.forest.go.kr/ 접속 → **"지도 서비스"** 탭
+2. 좌측 레이어 목록에서 **"도엽색인도 (1:5,000)"** 켜기 → 지도 위 격자 노출
+3. 검색창에 프로젝트 주소 (예: `경기도 양평군 양동면 금왕리 469`)
+4. 34 필지 덮는 **모든 도엽 번호 클릭해서 메모** (보통 3~6 장)
+5. **"자료 다운로드"** → 임상도/산지구분도/산사태위험 각 레이어별로 해당 도엽 모두 다운로드
+
+한 프로젝트당 **(도엽 수 × 레이어 수)** 개의 ZIP 을 받게 됨.
+예: 6 도엽 × 3 레이어 = 18 ZIP. 전부 받아서 레이어별로 디렉토리에 정리.
+
+## 도엽 단위 ZIP 일괄 적재
+
+```bash
+# 레이어별로 디렉토리 분리해두기
+/data/forest/sheets/
+  imsang/        ← 임상도 도엽 ZIP 3~6 개
+    37706087.zip
+    37706088.zip ...
+  sanji/         ← 산지구분도 도엽 ZIP
+    37706087.zip ...
+  landslide/     ← 산사태위험 도엽 ZIP
+    37706087.zip ...
+
+# 각 레이어 적재 (도엽별로 나눠 풀고 DB 에 모음)
+docker exec orbitron-joojooland-XXX python -m backend.scripts.ingest_forest_sheets \
+  --layer imsang --source-dir /data/forest/sheets/imsang --truncate
+
+docker exec orbitron-joojooland-XXX python -m backend.scripts.ingest_forest_sheets \
+  --layer sanji --source-dir /data/forest/sheets/sanji --truncate
+
+docker exec orbitron-joojooland-XXX python -m backend.scripts.ingest_forest_sheets \
+  --layer landslide --source-dir /data/forest/sheets/landslide --truncate
+```
+
+**레이어 자동 판정**: 디렉토리에 섞여있을 때 `--layer auto` 로 스키마 보고 자동 분류:
+```bash
+python -m backend.scripts.ingest_forest_sheets --layer auto --source-dir /data/forest/sheets/all/ --truncate
+```
+
+## 지금 받은 파일을 어디에 넣는가
 
 ## 지금 받은 파일을 어디에 넣는가
 
