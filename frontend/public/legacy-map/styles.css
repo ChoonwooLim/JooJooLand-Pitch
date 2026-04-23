@@ -113,8 +113,9 @@ header h1 .project-suffix {
 
 /* ==================== 토지 상세 정보 모달 ==================== */
 /* ========== 토지정보 모달 — 라이트 테마 + 풀폭 ========== */
-/* 자체 라이트 팔레트를 모달 스코프에 CSS 변수로 깔아 상위 다크 테마와 격리 */
-.landinfo-modal-content {
+/* 자체 라이트 팔레트를 모달 스코프에 CSS 변수로 깔아 상위 다크 테마와 격리.
+   `.modal-content` 의 max-width 500px 를 덮기 위해 특이성 높임. */
+.modal-content.landinfo-modal-content {
   --li-bg:         #ffffff;
   --li-bg-soft:    #f8f9fa;
   --li-bg-head:    #eef5f1;       /* 섹션 헤더 */
@@ -130,12 +131,12 @@ header h1 .project-suffix {
   --li-warn-br:    #ffd666;
   --li-warn-text:  #946200;
 
-  max-width: 98vw;
-  width: 98vw;
-  max-height: 96vh;
+  max-width: 80vw;
+  width: 80vw;
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
-  padding: 20px 28px;
+  padding: 24px 32px;
   background: var(--li-bg) !important;
   background-image: none !important;
   color: var(--li-text);
