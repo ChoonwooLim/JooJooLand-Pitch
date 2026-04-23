@@ -260,16 +260,15 @@ main {
 /* ==================== GIS 오버레이 탭 ==================== */
 .tab-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   margin: 0 -2px 10px;
   padding: 0;
   border-bottom: 1px solid var(--border-soft);
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 .tab-button {
-  flex: 1 1 auto;
-  min-width: 42px;
+  flex: 1 1 28%;
+  min-width: 40px;
   padding: 6px 2px;
   border: none;
   background: transparent;
