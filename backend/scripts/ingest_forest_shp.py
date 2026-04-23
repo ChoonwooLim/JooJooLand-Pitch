@@ -76,11 +76,14 @@ def ingest_one_layer(
 
     log_fn = print if verbose else (lambda *_a, **_k: None)
 
-    # 원본 SHP CRS 파악
+    # 원본 SHP CRS 파악. pyogrio 가 .prj 의 ESRI 확장 문자열 파싱 실패 시 None 반환.
+    # 한국 산림청 SHP 는 사실상 EPSG:5179 (UTM-K) 이므로 fallback.
     info = pyogrio.read_info(str(src))
-    src_crs = srid_override or info.get("crs")
+    raw_crs = info.get("crs")
+    src_crs = srid_override or raw_crs
     if not src_crs:
-        return {"status": "error", "inserted": 0, "skipped": 0, "message": "SHP CRS 미상 — srid_override 지정"}
+        log_fn(f"[warn] CRS 자동 인식 실패 — EPSG:5179 로 fallback (한국 산림 SHP 표준)")
+        src_crs = 5179
 
     src_crs_obj = CRS.from_user_input(src_crs)
     to_wgs = Transformer.from_crs(src_crs_obj, WGS84, always_xy=True).transform
