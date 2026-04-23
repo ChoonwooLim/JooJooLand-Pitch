@@ -18,6 +18,17 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- 토지 상세 정보 모달 -->
+  <div id="landinfo-modal" class="modal hidden">
+    <div class="modal-content landinfo-modal-content">
+      <div class="editor-header">
+        <h2>📊 토지 상세 정보</h2>
+        <button id="landinfo-close" class="editor-close-btn" title="닫기">✕</button>
+      </div>
+      <div id="landinfo-body" class="landinfo-body"></div>
+    </div>
+  </div>
+
   <!-- 프로젝트 관리 모달 -->
   <div id="projects-modal" class="modal hidden">
     <div class="modal-content projects-modal-content">
@@ -103,7 +114,10 @@
   <!-- 헤더 -->
   <header>
     <div class="header-left">
-      <h1>🗺️ <span id="project-title">JooJoo Land</span> <small class="project-suffix">사업예정부지</small></h1>
+      <div class="title-row">
+        <h1>🗺️ <span id="project-title">JooJoo Land</span> <small class="project-suffix">사업예정부지</small></h1>
+        <button id="open-landinfo" class="landinfo-btn" title="토지·산지 상세 정보">📊 토지정보</button>
+      </div>
       <div class="subtitle">경기도 양평군 양동면 · 34필지 · 약 51.7ha (15.6만평)</div>
     </div>
     <div class="header-right">
@@ -305,5 +319,6 @@
   <script src="app.js"></script>
   <script src="cesium-app.js"></script>
   <script src="editor.js"></script>
+  <script src="landinfo.js"></script>
 </body>
 </html>

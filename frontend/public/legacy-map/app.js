@@ -458,6 +458,7 @@ const JIMOK_CODE_ROAD = new Set(['14', '도']);
 const ADJACENCY_MAX_METERS = 15;
 
 const adjacentLayerGroups = {}; // type -> L.LayerGroup
+window.adjacentLayerGroups = adjacentLayerGroups;
 let _adjBBoxCached = null;
 let _targetVertexSetsCache = null;
 
@@ -764,6 +765,7 @@ function styleForAdjLayer(type) {
 
 // 각 type 별 가장 최근 features 보관 — 스타일 재계산·3D 재적용 용
 const adjacentFeaturesByType = {};
+window.adjacentFeaturesByType = adjacentFeaturesByType;
 
 function renderAdjacentLayer(type, features, cfg) {
   const group = L.layerGroup();

@@ -87,6 +87,258 @@ header h1 .project-suffix {
   opacity: 0.85;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.landinfo-btn {
+  padding: 5px 12px;
+  background: linear-gradient(180deg, rgba(76, 201, 158, 0.18), rgba(30, 70, 55, 0.35));
+  color: #eaffef;
+  border: 1px solid var(--border-medium);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.landinfo-btn:hover {
+  background: linear-gradient(180deg, rgba(76, 201, 158, 0.28), rgba(30, 70, 55, 0.55));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(76, 201, 158, 0.25);
+}
+
+/* ==================== 토지 상세 정보 모달 ==================== */
+.landinfo-modal-content {
+  max-width: 1200px;
+  width: 95%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px;
+  background-image:
+    linear-gradient(180deg, rgba(6,12,9,0.94) 0%, rgba(4,10,7,0.98) 100%);
+}
+.landinfo-body {
+  overflow-y: auto;
+  padding-right: 8px;
+  flex: 1;
+}
+.linfo-section {
+  margin-bottom: 20px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.linfo-section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: rgba(76, 201, 158, 0.06);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.linfo-section-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.linfo-section-head small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.linfo-section-body { padding: 14px 16px; }
+
+.linfo-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.linfo-stat {
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.linfo-stat.accent {
+  background: linear-gradient(180deg, rgba(76, 201, 158, 0.12), rgba(30, 70, 55, 0.18));
+  border-color: var(--border-medium);
+}
+.linfo-stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.linfo-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.linfo-stat-value small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 3px;
+}
+
+.linfo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.linfo-table th,
+.linfo-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  vertical-align: middle;
+}
+.linfo-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(0,0,0,0.2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.linfo-table td.num,
+.linfo-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.linfo-table tbody tr:hover { background: rgba(76, 201, 158, 0.06); }
+
+.linfo-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.linfo-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(76, 201, 158, 0.12);
+  border: 1px solid var(--border-soft);
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+.linfo-chip-mtn {
+  background: rgba(233, 30, 99, 0.18);
+  border-color: rgba(233, 30, 99, 0.35);
+  color: #ffb4c8;
+}
+.linfo-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+.linfo-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+.linfo-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: rgba(255,255,255,0.2);
+  vertical-align: middle;
+}
+.linfo-dot.on {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-dim);
+}
+.linfo-hint {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+.linfo-notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 193, 7, 0.06);
+  border: 1px solid rgba(255, 193, 7, 0.25);
+  border-radius: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.linfo-notice b { color: #ffd966; }
+
+.linfo-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.linfo-links a {
+  padding: 3px 8px;
+  background: rgba(76, 201, 158, 0.1);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+.linfo-links a:hover {
+  background: var(--accent-dim);
+  color: #eaffef;
+  border-color: var(--border-medium);
+}
+
+.linfo-ext-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.linfo-ext-card {
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.linfo-ext-card:hover {
+  background: rgba(76, 201, 158, 0.08);
+  border-color: var(--accent-dim);
+  transform: translateY(-2px);
+  color: var(--text-primary);
+}
+.linfo-ext-card strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.linfo-ext-card small {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.linfo-scroll-table {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+}
+
+.linfo-forest-table td { vertical-align: top; }
+
 .subtitle {
   font-size: 12px;
   opacity: 0.72;
