@@ -70,13 +70,14 @@ def classify_sanji(attrs: dict) -> str:
 
 
 def classify_imsang(attrs: dict) -> dict:
-    """임상도 속성 정규화."""
+    """임상도 속성 정규화. NM(한글) 필드 우선, 없으면 CD(숫자)."""
     return {
-        "임상":   _pick(attrs, "frtp_cd", "frtp_nm", "imsang", "type"),
-        "수종":   _pick(attrs, "kofrtp_cd", "kofrtp_nm", "sujong"),
-        "경급":   _pick(attrs, "dmcls_cd", "dmcls_nm", "dbh"),
-        "영급":   _pick(attrs, "agcls_cd", "agcls_nm", "age"),
-        "수관밀도": _pick(attrs, "dncls_cd", "dncls_nm", "density"),
+        "임상":   _pick(attrs, "FRTP_NM", "frtp_nm", "FRTP_CD", "frtp_cd", "imsang", "type"),
+        "수종":   _pick(attrs, "KOFTR_NM", "koftr_nm", "KOFTR_GROU", "koftr_grou", "sujong"),
+        "경급":   _pick(attrs, "DMCLS_NM", "dmcls_nm", "DMCLS_CD", "dmcls_cd", "dbh"),
+        "영급":   _pick(attrs, "AGCLS_NM", "agcls_nm", "AGCLS_CD", "agcls_cd", "age"),
+        "수관밀도": _pick(attrs, "DNST_NM", "dnst_nm", "DNST_CD", "dnst_cd", "density"),
+        "수고": _pick(attrs, "HEIGHT_NM", "height_nm", "HEIGHT", "height"),
     }
 
 

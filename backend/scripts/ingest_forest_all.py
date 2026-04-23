@@ -24,9 +24,11 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+_REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "backend"))
+sys.path.insert(0, str(_REPO))
 
-from backend.app.core.config import get_settings  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
 from backend.scripts.ingest_forest_shp import ingest_one_layer, parse_bbox  # noqa: E402
 
 

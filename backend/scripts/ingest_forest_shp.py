@@ -28,13 +28,23 @@ from shapely import wkb as shp_wkb
 from pyproj import CRS, Transformer
 from sqlmodel import Session, delete
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+_REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "backend"))   # backend/ — `from app.*` 경로 통일
 
-from backend.app.core.db import engine  # noqa: E402
-from backend.app.models.forest import ForestFeature, ForestIngestLog  # noqa: E402
+from app.core.db import engine, init_db  # noqa: E402
+from app.models.forest import ForestFeature, ForestIngestLog  # noqa: E402
 
 
 WGS84 = CRS.from_epsg(4326)
+
+# 최초 호출 시 테이블 생성 (모듈 레벨에서 한 번)
+_INITIALIZED = False
+
+def _ensure_tables():
+    global _INITIALIZED
+    if not _INITIALIZED:
+        init_db()
+        _INITIALIZED = True
 
 BBox = tuple[float, float, float, float]  # (lngMin, latMin, lngMax, latMax)
 
@@ -59,6 +69,7 @@ def ingest_one_layer(
 
     반환: {"status": "ok"|"error", "inserted": N, "skipped": N, "message": ...}
     """
+    _ensure_tables()
     src = Path(shp_path)
     if not src.exists():
         return {"status": "error", "inserted": 0, "skipped": 0, "message": f"file not found: {src}"}
