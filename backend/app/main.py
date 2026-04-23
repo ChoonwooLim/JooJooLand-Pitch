@@ -67,7 +67,7 @@ ALTERS_POSTGRES = [
     "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1",
     "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS description VARCHAR",
     "ALTER TABLE dataroomdoc ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE",
-    "ALTER TABLE forestfeature ADD COLUMN IF NOT EXISTS geom_type VARCHAR(16) DEFAULT 'Polygon'",
+    "ALTER TABLE forest_feature ADD COLUMN IF NOT EXISTS geom_type VARCHAR(16) DEFAULT 'Polygon'",
 ]
 
 
