@@ -1,5 +1,58 @@
 # 산림청 SHP 자체 적재 — 멀티 프로젝트 운영 가이드
 
+## Orbitron 실제 배포 레시피 (양평 예시)
+
+1. 원본 데이터는 `\\twinverse\forest-archive` (Windows 에서 `Z:`, 호스트에선 `/srv/TwinverseFolder/forest-archive`) 에 폴더명별 정리:
+   - `41830_임상도_5000`, `41830_산림입지도_5000/25000`, `41830_산림기능구분도`,
+     `41830_경제림육성단지_국유림/사유림`, `41830_임도망도`, `41830_산사태위험지도_1`,
+     `{11|26|27|28|29|30|31|41|43|44|50}_등산로_포인트_속성정보`
+2. Orbitron 호스트에서 프로젝트 볼륨으로 복사 (심볼릭 링크는 컨테이너에서 해석 불가):
+   ```bash
+   ssh stevenlim@192.168.219.101
+   VOL=/home/stevenlim/WORK/orbitron/deployments/joojooland/_volumes/data
+   cp -a /srv/TwinverseFolder/forest-archive "$VOL/forest"
+   ```
+3. Orbitron 프로젝트 환경변수 추가 (관리 UI):
+   ```
+   FOREST_SHP_DIR=/app/data/forest
+   LANDSLIDE_RASTER_PATH=/app/data/forest/41830_산사태위험지도_1/41830.tif
+   PROJECT_BBOX=127.50,37.30,127.85,37.60
+   PROJECT_NAME=JooJooLand
+   ```
+4. 컨테이너 안에서 레이어별 적재:
+   ```bash
+   CID=$(ssh stevenlim@192.168.219.101 "docker ps -q -f name=orbitron-joojooland-" | head -1)
+
+   for pair in \
+     "imsang 41830_임상도_5000" \
+     "soil 41830_산림입지도_5000" \
+     "productivity 41830_산림입지도_25000" \
+     "forest_function 41830_산림기능구분도" \
+     "state_forest 41830_경제림육성단지_국유림" \
+     "private_forest 41830_경제림육성단지_사유림" \
+     "forest_road 41830_임도망도"; do
+     set -- $pair
+     ssh stevenlim@192.168.219.101 "docker exec $CID python -m scripts.ingest_forest_shp \
+       --layer $1 --file /app/data/forest/$2/41830.shp \
+       --bbox 127.50,37.30,127.85,37.60 --truncate"
+   done
+
+   # 등산로 (경기도만 BBOX 에 걸림, 나머지 10개 시·도는 0건)
+   for code in 41; do
+     ssh stevenlim@192.168.219.101 "docker exec $CID python -m scripts.ingest_forest_shp \
+       --layer mountain_poi --file /app/data/forest/${code}_등산로_포인트_속성정보/${code}.shp \
+       --bbox 127.50,37.30,127.85,37.60 --truncate"
+   done
+   ```
+5. 확인:
+   ```bash
+   curl -s https://joojooland.twinverse.org/api/forest/status | python -m json.tool
+   # loaded_layers 에 imsang/soil/productivity/forest_function/state_forest/
+   # private_forest/forest_road/mountain_poi 값이 0 초과로 나와야 OK.
+   # landslide_raster_ready: true 도 확인.
+   ```
+
+
 ## FGIS 배포 단위
 
 FGIS 는 같은 레이어라도 배포 단위 여러 개가 병존:
