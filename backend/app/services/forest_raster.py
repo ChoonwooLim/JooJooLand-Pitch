@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-import rasterio
-from rasterio.mask import mask as rio_mask
+# 주의: rasterio 는 시스템 GDAL/GEOS/PROJ/libexpat 의존.
+# Orbitron 기본 이미지에 해당 lib 가 없을 수 있으므로 **lazy import** 로 전환.
+# 모듈 import 실패가 앱 전체를 막지 않도록, 실제 분석 함수 호출 시점에만 로드.
+
 from shapely.geometry import shape, mapping
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
@@ -36,6 +37,14 @@ def analyze_landslide_raster(
     class_labels: dict | None = None,
 ) -> dict:
     """파셀 폴리곤과 산사태위험등급 래스터를 교차해 등급별 픽셀·면적 분포 반환."""
+    # lazy import — GDAL/libexpat 없는 환경에서도 서비스 전체는 기동.
+    try:
+        import numpy as np
+        import rasterio
+        from rasterio.mask import mask as rio_mask
+    except ImportError as e:
+        return {"error": f"rasterio/numpy import 실패 (GDAL·libexpat 미설치): {e}"}
+
     labels = class_labels or LANDSLIDE_GRADE_LABELS
     rp = Path(raster_path)
     if not rp.exists():
