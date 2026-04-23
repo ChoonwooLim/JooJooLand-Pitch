@@ -106,8 +106,11 @@
 
   // =================== UI ===================
   function renderBadge() {
+    const name = getActive() || '—';
     const badge = document.getElementById('active-project-label');
-    if (badge) badge.textContent = getActive() || '—';
+    if (badge) badge.textContent = name;
+    const title = document.getElementById('project-title');
+    if (title) title.textContent = name;
   }
 
   function renderList() {

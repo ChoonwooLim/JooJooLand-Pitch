@@ -78,6 +78,14 @@ header h1 {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+header h1 .project-suffix {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  -webkit-text-fill-color: initial;
+  margin-left: 4px;
+  opacity: 0.85;
+}
 
 .subtitle {
   font-size: 12px;
