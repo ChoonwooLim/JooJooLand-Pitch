@@ -25,13 +25,24 @@ def vworld_config_js():
     )
 
 
-@router.get("/address")
-async def vworld_address_proxy(request: Request):
-    key = get_settings().vworld_api_key
-    if not key:
+def _prepare_vworld_params(request: Request) -> dict:
+    """키/도메인을 서버 측 설정으로 강제한다. VWorld 는 query 의 `domain` 이
+    발급 시 등록한 서비스 URL 호스트명과 일치해야 하므로, 브라우저가 localhost
+    등에서 호출하더라도 백엔드가 등록 도메인으로 덮어써야 INCORRECT_KEY 를 피한다.
+    """
+    s = get_settings()
+    if not s.vworld_api_key:
         raise HTTPException(status_code=503, detail="VWORLD_API_KEY not configured")
     params = dict(request.query_params)
-    params["key"] = key
+    params["key"] = s.vworld_api_key
+    if s.vworld_registered_domain:
+        params["domain"] = s.vworld_registered_domain
+    return params
+
+
+@router.get("/address")
+async def vworld_address_proxy(request: Request):
+    params = _prepare_vworld_params(request)
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(f"{VWORLD_BASE}/address", params=params)
     return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
@@ -39,11 +50,7 @@ async def vworld_address_proxy(request: Request):
 
 @router.get("/data")
 async def vworld_data_proxy(request: Request):
-    key = get_settings().vworld_api_key
-    if not key:
-        raise HTTPException(status_code=503, detail="VWORLD_API_KEY not configured")
-    params = dict(request.query_params)
-    params["key"] = key
+    params = _prepare_vworld_params(request)
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(f"{VWORLD_BASE}/data", params=params)
     return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
@@ -53,11 +60,7 @@ async def vworld_data_proxy(request: Request):
 # 예: /api/vworld/ned/getLandCharacteristics?pnu=...&stdrYear=2024&format=json
 @router.get("/ned/{endpoint}")
 async def vworld_ned_proxy(endpoint: str, request: Request):
-    key = get_settings().vworld_api_key
-    if not key:
-        raise HTTPException(status_code=503, detail="VWORLD_API_KEY not configured")
-    params = dict(request.query_params)
-    params["key"] = key
+    params = _prepare_vworld_params(request)
     params.setdefault("format", "json")
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(f"https://api.vworld.kr/ned/data/{endpoint}", params=params)

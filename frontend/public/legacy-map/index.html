@@ -155,12 +155,32 @@
           </div>
 
           <div class="tab-panel active" id="tab-site" role="tabpanel">
-            <label><input type="checkbox" class="layer-toggle" value="road" /> <span class="layer-swatch" style="background:#9e9e9e"></span> 도로</label>
-            <label><input type="checkbox" class="layer-toggle" value="ditch" /> <span class="layer-swatch" style="background:#00bcd4"></span> 구거</label>
-            <label><input type="checkbox" class="layer-toggle" value="river" /> <span class="layer-swatch" style="background:#2196f3"></span> 하천·제방·유지</label>
-            <label><input type="checkbox" class="layer-toggle" value="public" /> <span class="layer-swatch" style="background:#ffd54f"></span> 국공유지 <small>(β)</small></label>
-            <label><input type="checkbox" class="layer-toggle" value="military" /> <span class="layer-swatch" style="background:#d84315"></span> 군유지 <small>(β)</small></label>
-            <p class="hint">대상 34필지 범위 +300m 버퍼 조회. 국공유지/군유지는 VWorld 속성 제한으로 heuristic 판정.</p>
+            <div class="adj-layer-row">
+              <label><input type="checkbox" class="layer-toggle" value="road" /> <span class="layer-swatch" data-type="road"></span> 도로</label>
+              <input type="color" class="adj-color" data-type="road" title="색상" />
+              <input type="range" class="adj-alpha" data-type="road" min="0" max="100" step="5" title="채우기 투명도" />
+            </div>
+            <div class="adj-layer-row">
+              <label><input type="checkbox" class="layer-toggle" value="ditch" /> <span class="layer-swatch" data-type="ditch"></span> 구거</label>
+              <input type="color" class="adj-color" data-type="ditch" title="색상" />
+              <input type="range" class="adj-alpha" data-type="ditch" min="0" max="100" step="5" title="채우기 투명도" />
+            </div>
+            <div class="adj-layer-row">
+              <label><input type="checkbox" class="layer-toggle" value="river" /> <span class="layer-swatch" data-type="river"></span> 하천·제방·유지</label>
+              <input type="color" class="adj-color" data-type="river" title="색상" />
+              <input type="range" class="adj-alpha" data-type="river" min="0" max="100" step="5" title="채우기 투명도" />
+            </div>
+            <div class="adj-layer-row">
+              <label><input type="checkbox" class="layer-toggle" value="public" /> <span class="layer-swatch" data-type="public"></span> 국공유지 <small>(β)</small></label>
+              <input type="color" class="adj-color" data-type="public" title="색상" />
+              <input type="range" class="adj-alpha" data-type="public" min="0" max="100" step="5" title="채우기 투명도" />
+            </div>
+            <div class="adj-layer-row">
+              <label><input type="checkbox" class="layer-toggle" value="military" /> <span class="layer-swatch" data-type="military"></span> 군유지 <small>(β)</small></label>
+              <input type="color" class="adj-color" data-type="military" title="색상" />
+              <input type="range" class="adj-alpha" data-type="military" min="0" max="100" step="5" title="채우기 투명도" />
+            </div>
+            <p class="hint">대상 34필지 범위 +300m 버퍼 조회. 오른쪽 🎨/슬라이더로 색·투명도 즉시 조정. 국공유지/군유지는 VWorld 속성 제한으로 heuristic 판정.</p>
           </div>
 
           <div class="tab-panel" id="tab-landuse" role="tabpanel">
@@ -201,9 +221,9 @@
           </div>
         </div>
         <div class="filter-group" id="group-parcel-style">
-          <strong>필지 스타일 (3D)</strong>
-          <div class="style-row">
-            <label>높이 <span id="style-height-val" class="style-val">8m</span></label>
+          <strong>필지 스타일</strong>
+          <div class="style-row style-row-3d-only">
+            <label>높이 <span id="style-height-val" class="style-val">8m</span> <small style="color:var(--text-dim)">(3D)</small></label>
             <input type="range" id="style-height" min="0" max="10" step="0.5" />
           </div>
           <div class="style-row">
@@ -216,6 +236,10 @@
           </div>
           <label><input type="checkbox" id="style-fill" /> 면 채우기</label>
           <label><input type="checkbox" id="style-outline" /> 외곽선 표시</label>
+          <div class="uniform-row">
+            <label><input type="checkbox" id="style-uniform" /> 단일색 <small style="color:var(--text-dim)">(대상 34필지만)</small></label>
+            <input type="color" id="style-uniform-color" />
+          </div>
           <div class="style-colors">
             <div class="style-color-row"><span>전</span><input type="color" id="style-color-전" /></div>
             <div class="style-color-row"><span>답</span><input type="color" id="style-color-답" /></div>
@@ -243,6 +267,12 @@
     <div class="legend-item"><span class="legend-color" style="background:#00e676"></span> 임</div>
     <div class="legend-item"><span class="legend-color" style="background:#e91e63"></span> 임야</div>
     <div class="legend-item"><span class="legend-color" style="background:#ffeb3b"></span> 대</div>
+    <div class="legend-sep"></div>
+    <div class="legend-item legend-adj" data-type="road" hidden><span class="legend-color" data-type="road"></span> 도로</div>
+    <div class="legend-item legend-adj" data-type="ditch" hidden><span class="legend-color" data-type="ditch"></span> 구거</div>
+    <div class="legend-item legend-adj" data-type="river" hidden><span class="legend-color" data-type="river"></span> 하천·제방·유지</div>
+    <div class="legend-item legend-adj" data-type="public" hidden><span class="legend-color" data-type="public"></span> 국공유지</div>
+    <div class="legend-item legend-adj" data-type="military" hidden><span class="legend-color" data-type="military"></span> 군유지</div>
   </div>
 
   <script src="/api/vworld/config.js" onerror="console.warn('/api/vworld/config.js 없음 — 모달로 키 입력')"></script>

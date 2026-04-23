@@ -168,9 +168,10 @@ function startMap(key) {
   // 인접 부지 오버레이 체크박스 리스너는 즉시 부착 (필지 로드와 독립)
   setupAdjacentLayers(key);
 
-  // GIS 오버레이 탭 + WMS 토글
+  // GIS 오버레이 탭 + WMS 토글 + 2D 필지 스타일 컨트롤
   setupGisTabs();
   setupWMSLayers();
+  setupLeafletParcelStyleControls();
 
   // 필지 로드
   loadAllParcels(key);
@@ -199,6 +200,133 @@ const WMS_LAYER_CONFIG = {
   'road-net': { layer: 'lt_l_moctlink', label: '도로망' },
   'rail-net': { layer: 'lt_l_rwrlline', label: '철도망' },
 };
+
+// ==================== 2D (Leaflet) 필지 스타일 ====================
+// cesium-app.js 와 `joojoo_style` localStorage 키를 공유한다. 양 모듈이
+// 같은 DOM 입력에 각자 리스너를 달고 각자 레이어에 반영.
+const PARCEL_STYLE_KEY = 'joojoo_style';
+const LEAFLET_STYLE_DEFAULTS = {
+  alpha: 0.35,          // fillOpacity
+  outlineWidth: 2.5,    // weight
+  fill: true,
+  outline: true,
+  colors: { ...(window.CATEGORY_COLORS || {}) },
+  uniform: false,
+  uniformColor: '#9c27b0',
+};
+function loadLeafletParcelStyle() {
+  try {
+    const raw = localStorage.getItem(PARCEL_STYLE_KEY);
+    const s = raw ? JSON.parse(raw) : {};
+    const merged = { ...LEAFLET_STYLE_DEFAULTS, ...s };
+    merged.colors = { ...LEAFLET_STYLE_DEFAULTS.colors, ...(s.colors || {}) };
+    if (typeof merged.uniform !== 'boolean') merged.uniform = false;
+    if (!merged.uniformColor) merged.uniformColor = LEAFLET_STYLE_DEFAULTS.uniformColor;
+    return merged;
+  } catch { return { ...LEAFLET_STYLE_DEFAULTS }; }
+}
+const leafletParcelStyle = loadLeafletParcelStyle();
+
+function saveLeafletParcelStyle() {
+  let existing = {};
+  try { existing = JSON.parse(localStorage.getItem(PARCEL_STYLE_KEY) || '{}'); } catch {}
+  const merged = { ...existing, ...leafletParcelStyle };
+  merged.colors = { ...(existing.colors || {}), ...leafletParcelStyle.colors };
+  try { localStorage.setItem(PARCEL_STYLE_KEY, JSON.stringify(merged)); } catch {}
+}
+
+function parcelColorFor(parcel) {
+  if (leafletParcelStyle.uniform) return leafletParcelStyle.uniformColor || '#9c27b0';
+  return leafletParcelStyle.colors[parcel.category] || '#9e9e9e';
+}
+
+function applyLeafletParcelStyle() {
+  Object.values(polygonsById).forEach(({polygon, parcel}) => {
+    if (!polygon || !parcel) return;
+    const base = parcelColorFor(parcel);
+    polygon.setStyle({
+      color: base,
+      fillColor: base,
+      fillOpacity: leafletParcelStyle.fill ? leafletParcelStyle.alpha : 0,
+      opacity: leafletParcelStyle.outline ? 0.95 : 0,
+      weight: leafletParcelStyle.outline ? leafletParcelStyle.outlineWidth : 0,
+    });
+  });
+}
+
+function setupLeafletParcelStyleControls() {
+  const alphaEl = document.getElementById('style-alpha');
+  const alphaLbl = document.getElementById('style-alpha-val');
+  if (alphaEl) {
+    alphaEl.value = leafletParcelStyle.alpha;
+    if (alphaLbl) alphaLbl.textContent = `${Math.round(leafletParcelStyle.alpha*100)}%`;
+    alphaEl.addEventListener('input', (e) => {
+      leafletParcelStyle.alpha = parseFloat(e.target.value);
+      if (alphaLbl) alphaLbl.textContent = `${Math.round(leafletParcelStyle.alpha*100)}%`;
+      applyLeafletParcelStyle(); saveLeafletParcelStyle();
+    });
+  }
+  const owEl = document.getElementById('style-outline-width');
+  const owLbl = document.getElementById('style-outline-width-val');
+  if (owEl) {
+    owEl.value = leafletParcelStyle.outlineWidth;
+    if (owLbl) owLbl.textContent = `${leafletParcelStyle.outlineWidth}px`;
+    owEl.addEventListener('input', (e) => {
+      leafletParcelStyle.outlineWidth = parseFloat(e.target.value);
+      if (owLbl) owLbl.textContent = `${leafletParcelStyle.outlineWidth}px`;
+      applyLeafletParcelStyle(); saveLeafletParcelStyle();
+    });
+  }
+  const fillEl = document.getElementById('style-fill');
+  if (fillEl) {
+    fillEl.checked = leafletParcelStyle.fill;
+    fillEl.addEventListener('change', (e) => {
+      leafletParcelStyle.fill = e.target.checked;
+      applyLeafletParcelStyle(); saveLeafletParcelStyle();
+    });
+  }
+  const outEl = document.getElementById('style-outline');
+  if (outEl) {
+    outEl.checked = leafletParcelStyle.outline;
+    outEl.addEventListener('change', (e) => {
+      leafletParcelStyle.outline = e.target.checked;
+      applyLeafletParcelStyle(); saveLeafletParcelStyle();
+    });
+  }
+  ['전','답','임','임야','대'].forEach(cat => {
+    const el = document.getElementById(`style-color-${cat}`);
+    if (!el) return;
+    el.value = leafletParcelStyle.colors[cat] || '#9e9e9e';
+    el.addEventListener('input', (e) => {
+      leafletParcelStyle.colors[cat] = e.target.value;
+      if (!leafletParcelStyle.uniform) applyLeafletParcelStyle();
+      saveLeafletParcelStyle();
+    });
+  });
+  const uEl = document.getElementById('style-uniform');
+  const ucEl = document.getElementById('style-uniform-color');
+  if (uEl) {
+    uEl.checked = !!leafletParcelStyle.uniform;
+    uEl.addEventListener('change', (e) => {
+      leafletParcelStyle.uniform = e.target.checked;
+      applyLeafletParcelStyle(); saveLeafletParcelStyle();
+      if (window.CesiumApp?.applyStyle) {
+        window.CesiumApp.applyStyle({ uniform: leafletParcelStyle.uniform, uniformColor: leafletParcelStyle.uniformColor });
+      }
+    });
+  }
+  if (ucEl) {
+    ucEl.value = leafletParcelStyle.uniformColor;
+    ucEl.addEventListener('input', (e) => {
+      leafletParcelStyle.uniformColor = e.target.value;
+      if (leafletParcelStyle.uniform) applyLeafletParcelStyle();
+      saveLeafletParcelStyle();
+      if (window.CesiumApp?.applyStyle) {
+        window.CesiumApp.applyStyle({ uniformColor: leafletParcelStyle.uniformColor });
+      }
+    });
+  }
+}
 
 function setupGisTabs() {
   const buttons = document.querySelectorAll('.tab-button');
@@ -259,13 +387,38 @@ function toggleWMSLayer(key, enabled, cb) {
 // ==================== 인접 부지 오버레이 ====================
 // 연속지적도(LP_PA_CBND_BUBUN)는 지목 속성 미노출.
 // → BBOX 로 전체 PNU 가져와 VWorld NED getLandCharacteristics 로 ladUseSittnNm(토지이용상황) 보강.
+// 기본 스타일. 채우기 투명도(fillOpacity)는 0..1. UI 에서 0..100 % 로 노출.
 const ADJ_LAYER_CONFIG = {
-  road:     { label: '도로',           color: '#616161', matchAny: ['도로', '국도', '지방도', '고속도'] },
-  ditch:    { label: '구거',           color: '#00bcd4', matchAny: ['구거'] },
-  river:    { label: '하천·제방·유지', color: '#1976d2', matchAny: ['하천', '제방', '유지'] },
-  public:   { label: '국공유지',       color: '#ffa000', matchAny: null, note: 'ownership' },
-  military: { label: '군유지',         color: '#d84315', matchAny: null, note: 'ownership' },
+  road:     { label: '도로',           color: '#ff5722', fillOpacity: 0.45, matchAny: ['도로', '국도', '지방도', '고속도'] },
+  ditch:    { label: '구거',           color: '#00e5ff', fillOpacity: 0.40, matchAny: ['구거'] },
+  river:    { label: '하천·제방·유지', color: '#2196f3', fillOpacity: 0.40, matchAny: ['하천', '제방', '유지'] },
+  public:   { label: '국공유지',       color: '#ffc107', fillOpacity: 0.40, matchAny: null, note: 'ownership' },
+  military: { label: '군유지',         color: '#ff1744', fillOpacity: 0.45, matchAny: null, note: 'ownership' },
 };
+
+// 사용자 커스터마이즈 — localStorage 에 영속
+const ADJ_STYLE_STORAGE_KEY = 'joojoo_adj_layer_styles_v1';
+function loadAdjStyles() {
+  try {
+    const raw = localStorage.getItem(ADJ_STYLE_STORAGE_KEY);
+    const saved = raw ? JSON.parse(raw) : {};
+    Object.keys(ADJ_LAYER_CONFIG).forEach(type => {
+      const s = saved[type];
+      if (!s) return;
+      if (typeof s.color === 'string') ADJ_LAYER_CONFIG[type].color = s.color;
+      if (typeof s.fillOpacity === 'number') ADJ_LAYER_CONFIG[type].fillOpacity = s.fillOpacity;
+    });
+  } catch (e) { console.warn('[adj-style] load 실패:', e.message); }
+}
+function saveAdjStyles() {
+  const out = {};
+  Object.entries(ADJ_LAYER_CONFIG).forEach(([type, cfg]) => {
+    out[type] = { color: cfg.color, fillOpacity: cfg.fillOpacity };
+  });
+  try { localStorage.setItem(ADJ_STYLE_STORAGE_KEY, JSON.stringify(out)); }
+  catch (e) { console.warn('[adj-style] save 실패:', e.message); }
+}
+loadAdjStyles();
 
 // 지목 코드 (KLIS 표준, 28종). VWorld WFS 가 코드 필드를 돌려주면 이걸로 매칭
 const JIMOK_CODE_ROAD = new Set(['14', '도']);
@@ -566,19 +719,23 @@ async function loadAdjacentLayer(type, key) {
   }
 }
 
+function styleForAdjLayer(type) {
+  const cfg = ADJ_LAYER_CONFIG[type];
+  return {
+    color: cfg.color,
+    weight: 1.5,
+    opacity: 0.9,
+    fillColor: cfg.color,
+    fillOpacity: typeof cfg.fillOpacity === 'number' ? cfg.fillOpacity : 0.4,
+    dashArray: type === 'road' ? '4,3' : null,
+  };
+}
+
 function renderAdjacentLayer(type, features, cfg) {
   const group = L.layerGroup();
+  const style = styleForAdjLayer(type);
   features.forEach(f => {
-    const layer = L.geoJSON(f, {
-      style: {
-        color: cfg.color,
-        weight: 1.5,
-        opacity: 0.9,
-        fillColor: cfg.color,
-        fillOpacity: 0.22,
-        dashArray: type === 'road' ? '4,3' : null,
-      },
-    });
+    const layer = L.geoJSON(f, { style });
     const p = f.properties || {};
     layer.bindPopup(
       `<div class="popup-title">${cfg.label}</div>` +
@@ -595,6 +752,63 @@ function renderAdjacentLayer(type, features, cfg) {
     if (label) label.setZIndexOffset(1000);
   });
   adjacentLayerGroups[type] = group;
+  updateLegendAdjVisibility();
+}
+
+// 이미 그려진 그룹의 모든 하위 레이어에 스타일 재적용
+function reapplyAdjLayerStyle(type) {
+  const group = adjacentLayerGroups[type];
+  if (!group) return;
+  const style = styleForAdjLayer(type);
+  group.eachLayer(sub => {
+    if (typeof sub.setStyle === 'function') sub.setStyle(style);
+    else if (sub.eachLayer) sub.eachLayer(inner => inner.setStyle && inner.setStyle(style));
+  });
+}
+
+// 사이드바 swatch + 범례 swatch 를 현재 색상으로 동기화
+function syncAdjSwatches(type) {
+  const cfg = ADJ_LAYER_CONFIG[type];
+  document.querySelectorAll(`.layer-swatch[data-type="${type}"], .legend-color[data-type="${type}"]`).forEach(el => {
+    el.style.background = cfg.color;
+  });
+}
+
+function updateLegendAdjVisibility() {
+  document.querySelectorAll('.legend-adj').forEach(el => {
+    const type = el.dataset.type;
+    const active = Boolean(adjacentLayerGroups[type]);
+    if (active) el.removeAttribute('hidden');
+    else el.setAttribute('hidden', '');
+  });
+}
+
+// 초기값 반영 + 이벤트 연결
+function setupAdjacentStyleControls() {
+  Object.keys(ADJ_LAYER_CONFIG).forEach(type => {
+    const cfg = ADJ_LAYER_CONFIG[type];
+    const colorEl = document.querySelector(`.adj-color[data-type="${type}"]`);
+    const alphaEl = document.querySelector(`.adj-alpha[data-type="${type}"]`);
+    if (colorEl) {
+      colorEl.value = cfg.color;
+      colorEl.addEventListener('input', (e) => {
+        cfg.color = e.target.value;
+        syncAdjSwatches(type);
+        reapplyAdjLayerStyle(type);
+        saveAdjStyles();
+      });
+    }
+    if (alphaEl) {
+      alphaEl.value = String(Math.round((cfg.fillOpacity ?? 0.4) * 100));
+      alphaEl.addEventListener('input', (e) => {
+        cfg.fillOpacity = Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100));
+        reapplyAdjLayerStyle(type);
+        saveAdjStyles();
+      });
+    }
+    syncAdjSwatches(type);
+  });
+  updateLegendAdjVisibility();
 }
 
 function removeAdjacentLayer(type) {
@@ -603,9 +817,11 @@ function removeAdjacentLayer(type) {
     map.removeLayer(g);
     delete adjacentLayerGroups[type];
   }
+  updateLegendAdjVisibility();
 }
 
 function setupAdjacentLayers(key) {
+  setupAdjacentStyleControls();
   document.querySelectorAll('.layer-toggle').forEach(cb => {
     cb.addEventListener('change', async () => {
       const type = cb.value;
@@ -903,6 +1119,9 @@ async function loadAllParcels(key) {
   updateProgress(total, total, `완료: ${success}/${total}필지 표시됨`);
   document.getElementById('count').textContent = `(${success}/${total})`;
 
+  // 저장된 스타일(단일색 등) 최종 반영
+  applyLeafletParcelStyle();
+
   if (allBounds.length > 0) {
     const bounds = L.latLngBounds(allBounds.flat());
     map.fitBounds(bounds, { padding: [40, 40] });
@@ -919,15 +1138,15 @@ function renderParcel(parcel, feature, allBounds) {
   // 3D 뷰에서도 재사용할 수 있게 Cesium 에 등록
   if (window.CesiumApp) window.CesiumApp.register(parcel, feature);
 
-  const color = window.CATEGORY_COLORS[parcel.category] || '#9e9e9e';
+  const color = parcelColorFor(parcel);
 
   const geojson = L.geoJSON(feature, {
     style: {
       color: color,
-      weight: 2.5,
-      opacity: 0.95,
+      weight: leafletParcelStyle.outline ? leafletParcelStyle.outlineWidth : 0,
+      opacity: leafletParcelStyle.outline ? 0.95 : 0,
       fillColor: color,
-      fillOpacity: 0.35,
+      fillOpacity: leafletParcelStyle.fill ? leafletParcelStyle.alpha : 0,
     }
   });
 

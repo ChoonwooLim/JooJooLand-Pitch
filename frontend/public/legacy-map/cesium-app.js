@@ -18,6 +18,8 @@ window.CesiumApp = (function () {
     fill: true,
     outline: true,
     outlineWidth: 2,
+    uniform: false,
+    uniformColor: '#9c27b0',
     colors: Object.assign({}, window.CATEGORY_COLORS || {
       '전': '#f9a825', '답': '#1976d2', '임': '#00e676',
       '임야': '#e91e63', '대': '#ffeb3b',
@@ -195,7 +197,7 @@ window.CesiumApp = (function () {
   }
 
   function buildParcelGroup(parcel, ringCoords, terrainHeights) {
-    const baseHex = style.colors[parcel.category] || '#9e9e9e';
+    const baseHex = style.uniform ? (style.uniformColor || '#9e9e9e') : (style.colors[parcel.category] || '#9e9e9e');
     const fillColor = Cesium.Color.fromCssColorString(baseHex).withAlpha(style.alpha);
     const outlineColor = Cesium.Color.fromCssColorString(baseHex);
     const h = Math.max(style.height, 0);
@@ -287,7 +289,7 @@ window.CesiumApp = (function () {
     if (!viewer) return;
     const h = Math.max(style.height, 0);
     allParcelGroups.forEach((g) => {
-      const baseHex = style.colors[g.parcel.category] || '#9e9e9e';
+      const baseHex = style.uniform ? (style.uniformColor || '#9e9e9e') : (style.colors[g.parcel.category] || '#9e9e9e');
       const fillColor = Cesium.Color.fromCssColorString(baseHex).withAlpha(style.alpha);
       const outlineColor = Cesium.Color.fromCssColorString(baseHex);
 
@@ -397,6 +399,16 @@ window.CesiumApp = (function () {
   }
 
   function wireControls() {
+    // 2D 모드에서 이미 localStorage 를 업데이트했을 수 있으므로 재동기화
+    try {
+      const raw = localStorage.getItem('joojoo_style');
+      const s = raw ? JSON.parse(raw) : null;
+      if (s) {
+        Object.assign(style, s);
+        if (s.colors) Object.assign(style.colors, s.colors);
+      }
+    } catch {}
+
     const g = document.getElementById('toggle-google-3d');
     const o = document.getElementById('toggle-osm-buildings');
     const input = document.getElementById('fly-address');
@@ -455,6 +467,20 @@ window.CesiumApp = (function () {
       });
       el.dataset.wired = '1';
     });
+
+    // 단일색 토글 + 색상 — 2D Leaflet 쪽에서도 리스너를 달기 때문에 양쪽 동시 반영
+    const uEl = document.getElementById('style-uniform');
+    if (uEl && !uEl.dataset.wiredCesium) {
+      uEl.checked = !!style.uniform;
+      uEl.addEventListener('change', (e) => applyStyle({ uniform: e.target.checked }));
+      uEl.dataset.wiredCesium = '1';
+    }
+    const ucEl = document.getElementById('style-uniform-color');
+    if (ucEl && !ucEl.dataset.wiredCesium) {
+      ucEl.value = style.uniformColor || defaultStyle.uniformColor;
+      ucEl.addEventListener('input', (e) => applyStyle({ uniformColor: e.target.value }));
+      ucEl.dataset.wiredCesium = '1';
+    }
   }
 
   function hide() {

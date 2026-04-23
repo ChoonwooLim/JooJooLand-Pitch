@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n BACK,FRONT -c blue.bold,green.bold \"npm:dev:backend\" \"npm:dev:frontend\"",
     "dev:all": "concurrently -k -n BACK,FRONT -c blue.bold,green.bold \"npm:dev:backend\" \"npm:dev:frontend\"",
     "dev:frontend": "vite",
+    "dev:frontend-only": "vite",
     "dev:backend": "cd ../backend && python -m uvicorn app.main:app --reload --port 8000 --host 0.0.0.0",
     "build": "vite build",
     "lint": "eslint .",

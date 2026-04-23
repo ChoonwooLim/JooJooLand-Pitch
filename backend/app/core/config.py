@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     ue5_pixel_streamer_url: str = "http://192.168.219.117:8080"
 
     vworld_api_key: str = ""
+    # VWorld 에 키 발급 시 등록한 서비스 URL 의 호스트명.
+    # 브라우저가 localhost/개발 도메인에서 호출하더라도 백엔드 프록시가
+    # 이 값으로 domain 파라미터를 덮어써야 INCORRECT_KEY 를 피할 수 있다.
+    vworld_registered_domain: str = "joojooland.twinverse.org"
     cesium_ion_token: str = ""
 
     @property
