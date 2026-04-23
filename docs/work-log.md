@@ -31,3 +31,75 @@
 - 배포: Orbitron 컨테이너 재기동, 스키마 수동 ALTER 8건으로 502 복구
 
 ---
+
+## 2026-04-23
+
+### 작업 요약
+
+| 카테고리 | 작업 내용 | 상태 |
+|----------|----------|------|
+| fix | 지도 도로 오버레이 — 지적 jibun suffix + 인접도(≤15m) 임시 교체 | 완료 |
+| feat | 2D/3D 필지 스타일 컨트롤 통합, 단일색 토글, 인접 레이어 색·투명도 인라인 조정 | 완료 |
+| feat | VWorld 프록시 domain 강제 (localhost 호출도 INCORRECT_KEY 회피) + dev 동시기동 | 완료 |
+| feat | 3D Cesium 인접 레이어 (도로/구거/하천) classification polygon 렌더 | 완료 |
+| feat | 헤더 베이스맵 빠른 전환 (VWorld/Esri/OSM/지형) + 산림 탭 + 외부 공식 조회 | 완료 |
+| fix | GIS 탭바 줄바꿈 — 산림 탭 가로 스크롤 밖 숨김 이슈 | 완료 |
+| feat | 맵 페이지 풀뷰포트화 (히어로 제거·풋터 숨김·내부 메뉴바 상시 노출) | 완료 |
+| ui | 필지 목록을 소유자 필터 바로 아래로 이동 + 프로젝트명 동적 타이틀 | 완료 |
+| feat | 📊 토지정보 모달 신설 (지목·소유자·산지·인접레이어·외부링크·리스트 7섹션) | 완료 |
+| feat | 산림청 SHP 자체 적재·분석 파이프라인 (PostGIS 없이 shapely) | 완료 |
+| feat | 멀티 프로젝트 SHP 적재 오케스트레이터 + BBOX 기반 프로젝트별 주입 | 완료 |
+| feat | 등산로 포인트 (mountain_poi) 레이어 — 시·도별 ZIP 일괄 + 반경 3km POI 마커 | 완료 |
+| feat | 도엽 단위·시군구 단위 ZIP 일괄 적재 스크립트 + 레이어 자동 판정(auto) | 완료 |
+| feat | 산림입지도(soil)·임지생산능력(productivity) + 래스터(GeoTIFF zonal stats) 지원 | 완료 |
+| feat | 임도(forest_road LineString)·국유림·사유림·산림기능구분도 4 레이어 추가 | 완료 |
+| fix | 래스터 정체 재판정 — DATA016 = 산사태위험등급도 (경사도 아님). 색상 반전 | 완료 |
+| fix | 레이어명 정정 — public_forest → private_forest (DATA022 는 사유림 경제림) | 완료 |
+| infra | Docker GDAL/GEOS/PROJ 시스템 의존성 추가 + scripts/ 컨테이너 포함 | 완료 |
+| docs | FGIS 배포 단위 정정 (시군구 단위 ZIP 가능) + Orbitron 실제 배포 레시피 | 완료 |
+
+### 세부 내용
+
+**지도 UX 전면 개편**
+- 히어로 섹션 제거 후 iframe 이 뷰포트 100% 점유, `PublicShell` 에 `hideFooter/flush` 플래그 추가
+- 헤더 타이틀 프로젝트명 자동 갱신, 베이스맵 5개 버튼 (위성·Esri·일반·지형·OSM)
+- 필지 목록을 소유자 필터 아래로 이동, 📊 토지정보 버튼 → 큰 모달로 전체 집계
+
+**VWorld 도메인 이슈 근본 해결**
+- 원인: FGIS 서비스 URL 이 `twinverse.org` 인데 브라우저는 `joojooland.twinverse.org` 로 호출 → INCORRECT_KEY
+- 백엔드 프록시가 `domain` 파라미터를 등록된 값으로 강제 덮어쓰기 (로컬/프로덕션 양쪽 작동)
+
+**산림청 SHP 자체 적재 파이프라인 (대형)**
+- PostGIS 없이 shapely 로 Python 측 교집합 계산 (DB 이미지 건드릴 일 없음)
+- 레이어 9종: imsang / soil / productivity / forest_function / state_forest / private_forest / forest_road / mountain_poi / landslide_raster
+- 양평 41830 시군구 단위 ZIP + 전국 등산로 11 시도 ZIP + 래스터 실측 검증 완료
+- 금왕리 박스 실측: 활엽수림 60.8% / 산림휴양기능 100% / 국유림 41% 인접 / 임도 384m / 산사태 안전 33%
+- API: `/api/forest/{status, analyze, analyze-batch, nearby-poi, forest-roads, landslide(-batch)}`
+
+**Orbitron 배포 준비**
+- Samba 공유 `/srv/TwinverseFolder/forest-archive` (Windows Z:) → 호스트에서 `_volumes/data/forest` 로 1.5GB 실제 복사 (symlink 는 컨테이너 해석 실패)
+- Dockerfile 에 libgdal-dev/libgeos-dev/libproj-dev/libexpat1 + `scripts/` COPY 추가
+
+### 커밋 (19 건)
+
+- 34c7d60 fix(map): 도로 오버레이 (지적 jibun + 인접도)
+- 2901c26 feat(map): 필지 스타일 2D/3D 통합 + VWorld domain 강제 + dev 동시기동
+- 7c1fb53 feat(map): 3D 인접 레이어
+- 7cb9705 feat(map): 헤더 베이스맵 + 산림 외부링크
+- 85400a8 fix(map): GIS 탭바 줄바꿈
+- c4e5a46 feat(map): 맵 페이지 풀뷰포트화
+- 5740015 ui(map): 필지 목록 이동
+- b304cff ui(map): 프로젝트명 동적 타이틀
+- 3e8f82d feat(map): 토지정보 모달
+- de506ed feat(forest): SHP 자체 적재 파이프라인
+- abeed2f feat(forest): 멀티 프로젝트 오케스트레이터
+- 152e293 feat(forest): 등산로 포인트
+- 6db0869 feat(forest): 도엽 단위 ZIP 적재
+- 7b50398 docs(forest): FGIS 배포 단위 정정
+- 7db5350 fix(forest): sys.path 단일화 + classify_imsang 한글
+- d05caf7 feat(forest): 산림입지·임지생산·래스터 3 종
+- 6345975 feat(forest): 임도·국유림·사유림·산림기능 4 레이어
+- cc7dccc fix(forest): 래스터=산사태위험 정정 + Docker GDAL
+- 481ccef docs(forest): Orbitron 배포 레시피
+
+---
