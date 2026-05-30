@@ -133,3 +133,31 @@ Orbitron 배포 후 발생한 연쇄 이슈를 실서버 실측으로 해결:
 - 0aba731 style(landinfo): 80vw + 부모 모달 특이성 오버라이드
 
 ---
+
+## 2026-05-30
+
+### 작업 요약
+
+| 카테고리 | 작업 내용 | 상태 |
+|----------|----------|------|
+| feat | 사업인허가(Permits) 페이지 + 사전심사 분석 추적 대시보드 | 완료 |
+| feat | 지도 이동검색 — 위경도 직접입력 셀 + 해외 도시명 지오코딩 | 완료 |
+| fix  | 배포 파이프라인 **영구 수정** — orbitron.yaml 풀스택 빌드 전환 (프런트 자동배포 미반영 함정 해소) | 완료 |
+| chore | 미사용 `.claude/skills` 정리 (전역 스킬로 이전) | 완료 |
+
+### 세부 내용
+
+- **사업인허가 메뉴 신설**: `Permits.jsx`(326줄) + `Permits.module.css`(340줄) + `permitReview.js` 데이터(262줄) + 사전심사 PDF 2종(결과·분석보고서). Header/App 라우트 등록, ko/en i18n 26키씩 추가.
+- **지도 이동검색**: `cesium-app.js` 에 위경도 직접입력 셀 + 해외 도시명 지오코딩 추가 (국내 좌표 외 해외 도시도 이동 가능).
+- **배포 영구 수정 (핵심)**: 루트 멀티스테이지 `Dockerfile` 신설(node:20 빌드 → python:3.12 백엔드에 `/app/static` 으로 COPY) + `orbitron.yaml` 을 `dockerfile: Dockerfile, context: .` 로 전환 → **프런트-only 푸시도 자동 재빌드**. `backend/app/main.py` 에 `spa_fallback` 추가(정적 dist 있으면 SPA 서빙, 로컬 dev 무영향). `.dockerignore` 추가.
+  - **검증**: Orbitron 실서버에서 테스트 빌드(health 200) 후 푸시 → 플랫폼이 풀스택 이미지(`91c89aafa9d8`) 자동 빌드·컨테이너 재생성(healthy). 라이브 `/ /map /permits /openapi.json /assets/* /health` 전부 200, `Cache-Control: private, max-age=0, must-revalidate`. 비상 롤백 이미지 `orbitron-joojooland:rollback-20260530` 보존.
+- 미사용 `.claude/skills` 디렉토리 정리(전역 `~/.claude/skills` 로 이전됨).
+
+### 추가 커밋 (4 건)
+
+- c288ded feat(permits): 사업인허가 메뉴 + 사전심사 분석 추적 대시보드
+- 1e73595 feat(map): 지도 이동검색 — 위경도 직접입력 셀 + 해외 도시명 지오코딩
+- 7a2fbaa chore: 미사용 .claude/skills 정리 (전역 스킬로 이전됨)
+- c7541f8 fix(deploy): orbitron.yaml 풀스택 빌드 전환 — 프런트 자동배포 미반영 함정 해소
+
+---

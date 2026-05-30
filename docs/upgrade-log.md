@@ -41,3 +41,6 @@
 | 2026-04-23 | 산사태위험등급 래스터 zonal stats API + 프론트 모달 차트 (안전 구간 % 강조) | GIS/분석 | backend/app/services/forest_raster.py, routers/forest.py, landinfo.js |
 | 2026-04-23 | 임도 최근접 거리·교차 여부 API + 프론트 섹션 | GIS/분석 | services/forest_gis.py, routers/forest.py, landinfo.js |
 | 2026-04-23 | Docker 이미지에 GDAL/GEOS/PROJ/libexpat + scripts/ 포함 → rasterio/pyogrio 런타임 보장 | 인프라/Docker | backend/Dockerfile |
+| 2026-05-30 | 사업인허가(Permits) 페이지 신설 — 사전심사 분석 추적 대시보드 + 사전심사 결과·분석보고서 PDF 뷰어, ko/en i18n | 기능/인허가 | frontend/src/pages/Permits.{jsx,module.css}, data/permitReview.js, App.jsx, Header.jsx, i18n/{ko,en}.json, public/docs/*.pdf |
+| 2026-05-30 | 지도 이동검색 — 위경도 직접입력 셀 + 해외 도시명 지오코딩 (국내 좌표 외 해외 도시 이동 지원) | 지도/UX | frontend/public/legacy-map/cesium-app.js, index.html |
+| 2026-05-30 | 풀스택 단일 이미지 자동배포 전환 — 루트 멀티스테이지 Dockerfile + main.py SPA 서빙으로 프런트-only 푸시도 자동 반영 | 인프라/배포 | Dockerfile, orbitron.yaml, backend/app/main.py, .dockerignore |
