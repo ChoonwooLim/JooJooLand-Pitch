@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/themepark', key: 'nav.themepark' },
   { to: '/clone', key: 'nav.clone' },
   { to: '/map', key: 'nav.map' },
+  { to: '/permits', key: 'nav.permits' },
   { to: '/demo', key: 'nav.demo' },
   { to: '/investment', key: 'nav.investment' },
   { to: '/dataroom', key: 'nav.dataroom' },

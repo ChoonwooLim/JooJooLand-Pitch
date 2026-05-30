@@ -9,6 +9,7 @@ const Vision = lazy(() => import('./pages/Vision.jsx'));
 const ThemePark = lazy(() => import('./pages/ThemePark.jsx'));
 const DigitalClone = lazy(() => import('./pages/DigitalClone.jsx'));
 const MapPage = lazy(() => import('./pages/Map.jsx'));
+const Permits = lazy(() => import('./pages/Permits.jsx'));
 const Demo = lazy(() => import('./pages/Demo.jsx'));
 const Investment = lazy(() => import('./pages/Investment.jsx'));
 const DataRoom = lazy(() => import('./pages/DataRoom.jsx'));
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/themepark" element={<PublicShell><ThemePark /></PublicShell>} />
         <Route path="/clone" element={<PublicShell><DigitalClone /></PublicShell>} />
         <Route path="/map" element={<PublicShell hideFooter flush><MapPage /></PublicShell>} />
+        <Route path="/permits" element={<PublicShell><Permits /></PublicShell>} />
         <Route path="/demo" element={<PublicShell><Demo /></PublicShell>} />
         <Route path="/investment" element={<PublicShell><Investment /></PublicShell>} />
         <Route path="/contact" element={<PublicShell><Contact /></PublicShell>} />
