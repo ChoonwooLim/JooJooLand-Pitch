@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import text
 from sqlmodel import Session, select
 
@@ -172,3 +172,19 @@ app.include_router(admin_router)
 @app.get("/health")
 def root_health():
     return {"status": "ok"}
+
+
+# 빌드된 프런트(SPA)를 같은 컨테이너에서 서빙한다. dist 가 /app/static 에 구워져 있을 때만
+# 활성화되므로, 로컬 개발(vite 프록시 사용)에서는 영향이 없다. API 라우터/health 가
+# 먼저 등록돼 우선 매칭되고, 나머지 경로는 정적 파일 또는 index.html(SPA 라우팅)로 폴백.
+STATIC_DIR = (Path(__file__).resolve().parent.parent / "static")
+
+if STATIC_DIR.is_dir():
+    _STATIC_ROOT = STATIC_DIR.resolve()
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str) -> FileResponse:
+        candidate = (STATIC_DIR / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(_STATIC_ROOT):
+            return FileResponse(candidate)
+        return FileResponse(_STATIC_ROOT / "index.html")
